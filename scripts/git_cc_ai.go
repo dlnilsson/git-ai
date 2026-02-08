@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"errors"
 	"flag"
 	"fmt"
 	"os"
@@ -116,11 +117,13 @@ func (m spinnerModel) View() string {
 }
 
 func main() {
-	var codexCmd string
-	var codexArgs string
-	var skillPath string
-	var noSpinner bool
-	var extraNote string
+	var (
+		codexCmd  string
+		codexArgs string
+		skillPath string
+		noSpinner bool
+		extraNote string
+	)
 
 	flag.StringVar(&codexCmd, "codex-cmd", "codex", "codex command name or path")
 	flag.StringVar(&codexArgs, "codex-args", "exec --json", "args for codex invocation")
@@ -144,15 +147,26 @@ func main() {
 }
 
 func generateWithCodex(codexCmd, codexArgs, skillPath, extraNote string, showSpinner bool) (string, error) {
-	diff, err := gitDiffStaged()
+	var (
+		args      []string
+		cmd       *exec.Cmd
+		diff      string
+		err       error
+		output    string
+		out       []byte
+		prompt    strings.Builder
+		skillText string
+	)
+
+	diff, err = gitDiffStaged()
 	if err != nil {
 		return "", err
 	}
 	if strings.TrimSpace(diff) == "" {
-		return "", fmt.Errorf("No staged diff content found.")
+		return "", errors.New("No staged diff content found.")
 	}
 
-	skillText := conventionalSpec
+	skillText = conventionalSpec
 	if skillPath != "" {
 		if data, readErr := os.ReadFile(skillPath); readErr == nil {
 			trimmed := strings.TrimSpace(string(data))
@@ -162,7 +176,6 @@ func generateWithCodex(codexCmd, codexArgs, skillPath, extraNote string, showSpi
 		}
 	}
 
-	prompt := strings.Builder{}
 	prompt.WriteString("Generate a Conventional Commit message from the staged git diff.\n")
 	prompt.WriteString("Use the instructions below and output only the commit message.\n\n")
 	prompt.WriteString("Instructions:\n")
@@ -177,8 +190,8 @@ func generateWithCodex(codexCmd, codexArgs, skillPath, extraNote string, showSpi
 		prompt.WriteString("\n")
 	}
 
-	args := splitArgs(codexArgs)
-	cmd := exec.Command(codexCmd, args...)
+	args = splitArgs(codexArgs)
+	cmd = exec.Command(codexCmd, args...)
 	cmd.Stdin = strings.NewReader(prompt.String())
 	cmd.Stderr = os.Stderr
 	var stopSpinner func()
@@ -186,12 +199,12 @@ func generateWithCodex(codexCmd, codexArgs, skillPath, extraNote string, showSpi
 		stopSpinner = startSpinner(randomSpinnerMessage())
 		defer stopSpinner()
 	}
-	out, err := cmd.Output()
+	out, err = cmd.Output()
 	if err != nil {
-		return "", fmt.Errorf("codex invocation failed")
+		return "", fmt.Errorf("codex invocation failed: %w", err)
 	}
 
-	output := strings.TrimSpace(string(out))
+	output = strings.TrimSpace(string(out))
 	if output == "" {
 		return "", nil
 	}
@@ -245,7 +258,7 @@ func gitDiffStaged() (string, error) {
 	cmd.Stderr = os.Stderr
 	out, err := cmd.Output()
 	if err != nil {
-		return "", fmt.Errorf("failed to read staged diff (git diff --staged)")
+		return "", fmt.Errorf("failed to read staged diff (git diff --staged): %w", err)
 	}
 	return string(out), nil
 }
@@ -258,8 +271,10 @@ func splitArgs(raw string) []string {
 }
 
 func parseCodexJSON(raw string) string {
-	lines := strings.Split(raw, "\n")
-	last := ""
+	var (
+		lines = strings.Split(raw, "\n")
+		last  = ""
+	)
 	for _, line := range lines {
 		line = strings.TrimSpace(line)
 		if line == "" {
@@ -292,8 +307,10 @@ func parseCodexJSON(raw string) string {
 
 func extractJSONField(raw string, keys []string) string {
 	for _, key := range keys {
-		needle := `"` + key + `":`
-		idx := strings.Index(raw, needle)
+		var (
+			needle = `"` + key + `":`
+			idx    = strings.Index(raw, needle)
+		)
 		if idx == -1 {
 			continue
 		}
