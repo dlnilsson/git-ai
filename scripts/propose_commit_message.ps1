@@ -21,7 +21,7 @@ if (-not $gitRoot) {
 }
 
 $gopath = (go env GOPATH 2>$null).Trim()
-$bin = if ($gopath) { Join-Path $gopath "bin\git-ai.exe" } else { "" }
+$bin = if ($gopath) { Join-Path $gopath "bin\git-cc-ai.exe" } else { "" }
 $localGo = Join-Path $PSScriptRoot "git_ai_commit.go"
 
 Push-Location $gitRoot | Out-Null
@@ -53,3 +53,4 @@ try {
 } finally {
     Pop-Location | Out-Null
 }
+
