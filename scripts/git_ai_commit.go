@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/exec"
 	"strings"
+	"time"
 
 	"github.com/charmbracelet/bubbles/spinner"
 	tea "github.com/charmbracelet/bubbletea"
@@ -21,9 +22,30 @@ type spinnerModel struct {
 	message string
 }
 
-const conventionalSpec = `Conventional Commits 1.0.0 Spec
-Source: https://raw.githubusercontent.com/conventional-commits/conventionalcommits.org/refs/heads/master/content/v1.0.0/index.md
+var spinnerMessages = []string{
+	"Generating commit message with Codex...",
+	"Summarizing staged changes...",
+	"Drafting Conventional Commit...",
+	"Giving birth to skynet",
+	"Analyzing diff hunks...",
+	"Composing commit summary...",
+	"Buying Sam Altman a new ferrari...",
+}
 
+var spinnerStyles = []spinner.Spinner{
+	spinner.Line,
+	spinner.Dot,
+	spinner.MiniDot,
+	spinner.Jump,
+	spinner.Pulse,
+	spinner.Points,
+	spinner.Globe,
+	spinner.Moon,
+	spinner.Monkey,
+}
+
+// From: https://raw.githubusercontent.com/conventional-commits/conventionalcommits.org/refs/heads/master/content/v1.0.0/index.md
+const conventionalSpec = `Conventional Commits 1.0.0 Spec
 Summary
 The Conventional Commits specification is a lightweight convention on top of commit messages. It provides an easy set of rules for creating an explicit commit history; which makes it easier to write automated tools on top of. This convention dovetails with SemVer, by describing the features, fixes, and breaking changes made in commit messages.
 
@@ -64,7 +86,7 @@ Specification
 
 func newSpinnerModel(message string) spinnerModel {
 	s := spinner.New()
-	s.Spinner = spinner.Dot
+	s.Spinner = randomSpinnerStyle()
 	s.Style = lipgloss.NewStyle().Foreground(lipgloss.Color("205"))
 	return spinnerModel{spinner: s, message: message}
 }
@@ -147,7 +169,7 @@ func generateWithCodex(codexCmd, codexArgs, skillPath string, showSpinner bool) 
 	cmd.Stderr = os.Stderr
 	var stopSpinner func()
 	if showSpinner {
-		stopSpinner = startSpinner("Generating commit message with Codex...")
+		stopSpinner = startSpinner(randomSpinnerMessage())
 		defer stopSpinner()
 	}
 	out, err := cmd.Output()
@@ -171,6 +193,22 @@ func generateWithCodex(codexCmd, codexArgs, skillPath string, showSpinner bool) 
 	}
 
 	return output, nil
+}
+
+func randomSpinnerMessage() string {
+	if len(spinnerMessages) == 0 {
+		return "Generating commit message with Codex..."
+	}
+	seed := time.Now().UnixNano()
+	return spinnerMessages[int(seed%int64(len(spinnerMessages)))]
+}
+
+func randomSpinnerStyle() spinner.Spinner {
+	if len(spinnerStyles) == 0 {
+		return spinner.Dot
+	}
+	seed := time.Now().UnixNano()
+	return spinnerStyles[int(seed%int64(len(spinnerStyles)))]
 }
 
 func startSpinner(message string) func() {
