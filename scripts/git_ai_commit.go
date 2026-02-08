@@ -20,6 +20,7 @@ type spinnerDoneMsg struct{}
 type spinnerModel struct {
 	spinner spinner.Model
 	message string
+	done    bool
 }
 
 var spinnerMessages = []string{
@@ -98,6 +99,7 @@ func (m spinnerModel) Init() tea.Cmd {
 func (m spinnerModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg.(type) {
 	case spinnerDoneMsg:
+		m.done = true
 		return m, tea.Quit
 	default:
 		var cmd tea.Cmd
@@ -107,6 +109,9 @@ func (m spinnerModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (m spinnerModel) View() string {
+	if m.done {
+		return "\r\033[2K"
+	}
 	return fmt.Sprintf("\n  %s %s\n", m.spinner.View(), m.message)
 }
 
