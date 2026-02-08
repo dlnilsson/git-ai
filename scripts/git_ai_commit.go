@@ -13,6 +13,7 @@ import (
 	"github.com/charmbracelet/bubbles/spinner"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
+	"github.com/muesli/termenv"
 )
 
 type inference struct {
@@ -264,6 +265,9 @@ func generateWithCodex(codexCmd, codexArgs, skillPath, typ, scope, summary, body
 }
 
 func startSpinner(message string) func() {
+	// Force color for spinner output even when stdout is piped.
+	_ = os.Setenv("CLICOLOR_FORCE", "1")
+	lipgloss.SetColorProfile(termenv.ANSI)
 	p := tea.NewProgram(newSpinnerModel(message), tea.WithOutput(os.Stderr))
 	done := make(chan struct{})
 	go func() {
