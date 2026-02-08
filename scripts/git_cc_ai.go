@@ -22,6 +22,7 @@ type spinnerModel struct {
 	spinner spinner.Model
 	message string
 	done    bool
+	start   time.Time
 }
 
 var spinnerMessages = []string{
@@ -90,7 +91,7 @@ func newSpinnerModel(message string) spinnerModel {
 	s := spinner.New()
 	s.Spinner = randomSpinnerStyle()
 	s.Style = lipgloss.NewStyle().Foreground(lipgloss.Color("205"))
-	return spinnerModel{spinner: s, message: message}
+	return spinnerModel{spinner: s, message: message, start: time.Now()}
 }
 
 func (m spinnerModel) Init() tea.Cmd {
@@ -113,7 +114,8 @@ func (m spinnerModel) View() string {
 	if m.done {
 		return "\r\033[2K"
 	}
-	return fmt.Sprintf("\n  %s %s\n", m.spinner.View(), m.message)
+	elapsed := time.Since(m.start).Round(100 * time.Millisecond)
+	return fmt.Sprintf("\n  %s %s (%s)\n", m.spinner.View(), m.message, elapsed)
 }
 
 func main() {
