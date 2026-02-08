@@ -34,8 +34,6 @@ Use one of these Conventional Commit types:
 
 ## Helper Binary
 
-Use scripts/git_cc_ai.go (or the compiled git-cc-ai binary) to draft a message from staged changes, or scripts/propose_commit_message.ps1 to auto-run it from the current repo.
-
 Build the binary once and keep it on PATH:
 
 ~~~
@@ -122,6 +120,3 @@ git config --global alias.ai '!git-ai'
 ## References
 
 Read references/conventional-commits.md for the core specification details and examples.
-
-
-
