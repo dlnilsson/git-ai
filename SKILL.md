@@ -50,22 +50,12 @@ git-ai -use-codex -skill-path "C:\Users\Daniel\.codex\skills\local\git-conventio
 ~~~
 
 Flags:
-- type: override inferred type
-- scope: override inferred scope
-- summary: override generated summary line
-- body: add a message body
-- footer: add additional footer lines (can include issue refs)
-- breaking: add ! and a BREAKING CHANGE footer
-- breaking-desc: override BREAKING CHANGE description
-- max-summary: truncate generated summary to this length (default 72)
-- use-codex: generate a detailed message using Codex and the staged diff (default: true)
-- no-codex: disable Codex and use heuristic message generation
 - codex-cmd: codex command name or path (default: codex)
 - codex-args: args for codex invocation (default: exec --skip-git-repo-check --json)
-- skill-path: path to SKILL.md to use as instructions for Codex
+- skill-path: path to SKILL.md to append after the built-in Conventional Commits 1.0.0 spec
 - no-spinner: disable the CLI spinner while Codex runs
 
-If no summary is provided, the script generates a simple one based on scope and file paths. Review and edit as needed. When `-use-codex` is set, the diff is provided to Codex and the output is used as the full commit message.
+The staged diff is provided to Codex and the output is used as the full commit message.
 
 ### Git Alias
 
@@ -75,10 +65,10 @@ Configure a git alias that pipes the suggested message into the commit editor:
 git config --global alias.ai '!git-ai | git commit -F - --edit'
 ~~~
 
-For Codex-generated messages:
+Use a skill path if you want to load these instructions explicitly:
 
 ~~~
-git config --global alias.ai '!git-ai -use-codex -skill-path "C:\Users\Daniel\.codex\skills\local\git-conventional-commit\SKILL.md" | git commit -F - --edit'
+git config --global alias.ai '!git-ai -skill-path "C:\Users\Daniel\.codex\skills\local\git-conventional-commit\SKILL.md" | git commit -F - --edit'
 ~~~
 
 ## Validation

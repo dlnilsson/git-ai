@@ -1,13 +1,11 @@
 package main
 
 import (
-	"bytes"
 	"encoding/json"
 	"flag"
 	"fmt"
 	"os"
 	"os/exec"
-	"path/filepath"
 	"strings"
 
 	"github.com/charmbracelet/bubbles/spinner"
@@ -16,17 +14,53 @@ import (
 	"github.com/muesli/termenv"
 )
 
-type inference struct {
-	typ    string
-	reason string
-}
-
 type spinnerDoneMsg struct{}
 
 type spinnerModel struct {
 	spinner spinner.Model
 	message string
 }
+
+const conventionalSpec = `Conventional Commits 1.0.0 Spec
+Source: https://raw.githubusercontent.com/conventional-commits/conventionalcommits.org/refs/heads/master/content/v1.0.0/index.md
+
+Summary
+The Conventional Commits specification is a lightweight convention on top of commit messages. It provides an easy set of rules for creating an explicit commit history; which makes it easier to write automated tools on top of. This convention dovetails with SemVer, by describing the features, fixes, and breaking changes made in commit messages.
+
+The commit message should be structured as follows:
+
+<type>[optional scope][!]: <description>
+
+[optional body]
+
+[optional footer(s)]
+
+The commit contains the following structural elements, to communicate intent to the consumers of your library:
+- fix: a commit of the type fix patches a bug in your codebase (correlates with PATCH in Semantic Versioning).
+- feat: a commit of the type feat introduces a new feature to the codebase (correlates with MINOR in Semantic Versioning).
+- BREAKING CHANGE: a commit that has a footer BREAKING CHANGE:, or appends a ! after the type/scope, introduces a breaking API change (correlates with MAJOR in Semantic Versioning). A BREAKING CHANGE can be part of commits of any type.
+- types other than fix and feat are allowed (e.g., build, chore, ci, docs, style, refactor, perf, test, and others).
+- footers other than BREAKING CHANGE: may be provided and follow a convention similar to git trailer format.
+- a scope may be provided to a commit's type and is contained within parenthesis, e.g., feat(parser): add ability to parse arrays.
+
+Specification
+1. Commits MUST be prefixed with a type, which consists of a noun (feat, fix, etc.), followed by the OPTIONAL scope, OPTIONAL !, and REQUIRED terminal colon and space.
+2. The type feat MUST be used when a commit adds a new feature.
+3. The type fix MUST be used when a commit represents a bug fix.
+4. A scope MAY be provided after a type. A scope MUST consist of a noun describing a section of the codebase surrounded by parenthesis, e.g., fix(parser):
+5. A description MUST immediately follow the colon and space after the type/scope prefix.
+6. The description is a short summary of the code changes.
+7. A longer commit body MAY be provided after the short description. The body MUST begin one blank line after the description.
+8. A commit body is free-form and MAY consist of any number of newline separated paragraphs.
+9. One or more footers MAY be provided one blank line after the body.
+10. Each footer MUST consist of a word token, followed by either a : or # separator, followed by a string value (inspired by git trailer convention). A footer's token MUST use - in place of whitespace characters (e.g., Acked-by). An exception is made for BREAKING CHANGE which MAY also be used as a token.
+11. A footer's value MAY contain spaces and newlines, and parsing MUST terminate when the next valid footer token/separator pair is observed.
+12. Breaking changes MUST be indicated in the type/scope prefix of a commit, or as an entry in the footer.
+13. If included as a footer, a breaking change MUST consist of the uppercase text BREAKING CHANGE, followed by a colon, space, and description.
+14. If included in the type/scope prefix, breaking changes MUST be indicated by a ! immediately before the :. If ! is used, BREAKING CHANGE: MAY be omitted from the footer, and the commit description SHALL be used to describe the breaking change.
+15. Types other than feat and fix MAY be used in your commit messages.
+16. The units of information that make up Conventional Commits MUST NOT be treated as case sensitive by implementors, with the exception of BREAKING CHANGE which MUST be uppercase. BREAKING-CHANGE MUST be synonymous with BREAKING CHANGE, when used as a token in a footer.
+`
 
 func newSpinnerModel(message string) spinnerModel {
 	s := spinner.New()
@@ -55,124 +89,30 @@ func (m spinnerModel) View() string {
 }
 
 func main() {
-	var typ string
-	var scope string
-	var summary string
-	var body string
-	var footer string
-	var breaking bool
-	var breakingDesc string
-	var maxSummary int
-	var useCodex bool
-	var noCodex bool
 	var codexCmd string
 	var codexArgs string
 	var skillPath string
 	var noSpinner bool
 
-	flag.StringVar(&typ, "type", "", "commit type")
-	flag.StringVar(&scope, "scope", "", "commit scope")
-	flag.StringVar(&summary, "summary", "", "summary line")
-	flag.StringVar(&body, "body", "", "body text")
-	flag.StringVar(&footer, "footer", "", "footer text")
-	flag.BoolVar(&breaking, "breaking", false, "add breaking change marker")
-	flag.StringVar(&breakingDesc, "breaking-desc", "", "breaking change description")
-	flag.IntVar(&maxSummary, "max-summary", 72, "max summary length")
-	flag.BoolVar(&useCodex, "use-codex", true, "use codex to generate a detailed message from staged diff")
-	flag.BoolVar(&noCodex, "no-codex", false, "disable codex and use heuristic message")
 	flag.StringVar(&codexCmd, "codex-cmd", "codex", "codex command name or path")
 	flag.StringVar(&codexArgs, "codex-args", "exec --skip-git-repo-check --json", "args for codex invocation")
 	flag.StringVar(&skillPath, "skill-path", "", "path to SKILL.md (optional, used for prompt)")
 	flag.BoolVar(&noSpinner, "no-spinner", false, "disable spinner while codex runs")
 	flag.Parse()
 
-	files, err := stagedFiles()
+	message, err := generateWithCodex(codexCmd, codexArgs, skillPath, !noSpinner)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err.Error())
 		os.Exit(1)
 	}
-	if len(files) == 0 {
-		fmt.Fprintln(os.Stderr, "No staged changes found.")
+	if strings.TrimSpace(message) == "" {
+		fmt.Fprintln(os.Stderr, "Codex returned empty output.")
 		os.Exit(1)
 	}
-
-	if noCodex {
-		useCodex = false
-	}
-
-	if useCodex {
-		message, err := generateWithCodex(codexCmd, codexArgs, skillPath, typ, scope, summary, body, footer, breaking, breakingDesc, !noSpinner)
-		if err != nil {
-			fmt.Fprintln(os.Stderr, err.Error())
-			os.Exit(1)
-		}
-		if strings.TrimSpace(message) != "" {
-			fmt.Print(strings.TrimSpace(message))
-			return
-		}
-		fmt.Fprintln(os.Stderr, "Codex returned empty output, falling back to heuristic message.")
-	}
-
-	if typ == "" {
-		inf := inferType(files)
-		typ = inf.typ
-		if inf.reason != "" {
-			fmt.Fprintln(os.Stderr, "Inferred type:", typ+" ("+inf.reason+")")
-		}
-	}
-
-	if scope == "" {
-		scope = inferScope(files)
-		if scope != "" {
-			fmt.Fprintln(os.Stderr, "Inferred scope:", scope)
-		}
-	}
-
-	if summary == "" {
-		if scope != "" {
-			summary = "update " + scope
-		} else {
-			summary = "update files"
-		}
-	}
-
-	summary = strings.TrimSpace(summary)
-	if maxSummary > 0 && len(summary) > maxSummary {
-		summary = summary[:maxSummary]
-		fmt.Fprintln(os.Stderr, "Summary truncated to", maxSummary, "characters.")
-	}
-
-	subject := buildSubject(typ, scope, summary, breaking)
-	out := bytes.Buffer{}
-	out.WriteString(subject)
-
-	body = strings.TrimSpace(body)
-	footer = strings.TrimSpace(footer)
-	if body != "" {
-		out.WriteString("\n\n")
-		out.WriteString(body)
-	}
-
-	footers := []string{}
-	if breaking {
-		desc := strings.TrimSpace(breakingDesc)
-		if desc == "" {
-			desc = "behavior changed"
-		}
-		footers = append(footers, "BREAKING CHANGE: "+desc)
-	}
-	if footer != "" {
-		footers = append(footers, footer)
-	}
-	if len(footers) > 0 {
-		out.WriteString("\n\n")
-		out.WriteString(strings.Join(footers, "\n"))
-	}
-
-	fmt.Print(out.String())
+	fmt.Print(strings.TrimSpace(message))
 }
 
-func generateWithCodex(codexCmd, codexArgs, skillPath, typ, scope, summary, body, footer string, breaking bool, breakingDesc string, showSpinner bool) (string, error) {
+func generateWithCodex(codexCmd, codexArgs, skillPath string, showSpinner bool) (string, error) {
 	diff, err := gitDiffStaged()
 	if err != nil {
 		return "", err
@@ -181,37 +121,14 @@ func generateWithCodex(codexCmd, codexArgs, skillPath, typ, scope, summary, body
 		return "", fmt.Errorf("No staged diff content found.")
 	}
 
-	skillText := ""
+	skillText := conventionalSpec
 	if skillPath != "" {
 		if data, readErr := os.ReadFile(skillPath); readErr == nil {
-			skillText = string(data)
+			trimmed := strings.TrimSpace(string(data))
+			if trimmed != "" {
+				skillText = skillText + "\nAdditional instructions:\n" + trimmed
+			}
 		}
-	}
-	if skillText == "" {
-		skillText = "Write Conventional Commit messages. Format: type(scope)!: summary with optional body and footer. Use BREAKING CHANGE footer for breaking changes."
-	}
-
-	constraints := []string{}
-	if typ != "" {
-		constraints = append(constraints, "type must be "+typ)
-	}
-	if scope != "" {
-		constraints = append(constraints, "scope must be "+scope)
-	}
-	if summary != "" {
-		constraints = append(constraints, "summary must be: "+summary)
-	}
-	if breaking {
-		constraints = append(constraints, "include breaking change marker (!) and a BREAKING CHANGE footer")
-	}
-	if breakingDesc != "" {
-		constraints = append(constraints, "BREAKING CHANGE description: "+breakingDesc)
-	}
-	if body != "" {
-		constraints = append(constraints, "body must include: "+body)
-	}
-	if footer != "" {
-		constraints = append(constraints, "footer must include: "+footer)
 	}
 
 	prompt := strings.Builder{}
@@ -220,13 +137,6 @@ func generateWithCodex(codexCmd, codexArgs, skillPath, typ, scope, summary, body
 	prompt.WriteString("Instructions:\n")
 	prompt.WriteString(skillText)
 	prompt.WriteString("\n\n")
-	if len(constraints) > 0 {
-		prompt.WriteString("Constraints:\n")
-		for _, c := range constraints {
-			prompt.WriteString("- " + c + "\n")
-		}
-		prompt.WriteString("\n")
-	}
 	prompt.WriteString("Staged diff:\n")
 	prompt.WriteString(diff)
 	prompt.WriteString("\n")
@@ -254,7 +164,6 @@ func generateWithCodex(codexCmd, codexArgs, skillPath, typ, scope, summary, body
 		return strings.TrimSpace(parsed), nil
 	}
 
-	// Fallback: try to extract a common field from JSON payloads.
 	if strings.HasPrefix(output, "{") {
 		if extracted := extractJSONField(output, []string{"output", "stdout", "result", "message"}); strings.TrimSpace(extracted) != "" {
 			return strings.TrimSpace(extracted), nil
@@ -265,7 +174,6 @@ func generateWithCodex(codexCmd, codexArgs, skillPath, typ, scope, summary, body
 }
 
 func startSpinner(message string) func() {
-	// Force color for spinner output even when stdout is piped.
 	_ = os.Setenv("CLICOLOR_FORCE", "1")
 	lipgloss.SetColorProfile(termenv.ANSI)
 	p := tea.NewProgram(newSpinnerModel(message), tea.WithOutput(os.Stderr))
@@ -290,30 +198,11 @@ func gitDiffStaged() (string, error) {
 	return string(out), nil
 }
 
-func stagedFiles() ([]string, error) {
-	cmd := exec.Command("git", "diff", "--staged", "--name-only")
-	cmd.Stderr = os.Stderr
-	out, err := cmd.Output()
-	if err != nil {
-		return nil, fmt.Errorf("failed to read staged files (git diff --staged --name-only)")
-	}
-	lines := strings.Split(string(out), "\n")
-	files := []string{}
-	for _, line := range lines {
-		trimmed := strings.TrimSpace(line)
-		if trimmed != "" {
-			files = append(files, trimmed)
-		}
-	}
-	return files, nil
-}
-
 func splitArgs(raw string) []string {
 	if strings.TrimSpace(raw) == "" {
 		return []string{}
 	}
-	parts := strings.Fields(raw)
-	return parts
+	return strings.Fields(raw)
 }
 
 func parseCodexJSON(raw string) string {
@@ -329,14 +218,12 @@ func parseCodexJSON(raw string) string {
 			continue
 		}
 		if t, ok := msg["type"].(string); ok {
-			// Direct agent message
 			if t == "agent_message" {
 				if text, ok := msg["text"].(string); ok && strings.TrimSpace(text) != "" {
 					last = text
 				}
 				continue
 			}
-			// item.completed containing agent_message
 			if t == "item.completed" {
 				if item, ok := msg["item"].(map[string]interface{}); ok {
 					if it, ok := item["type"].(string); ok && it == "agent_message" {
@@ -361,7 +248,6 @@ func extractJSONField(raw string, keys []string) string {
 		rest := raw[idx+len(needle):]
 		rest = strings.TrimLeft(rest, " \n\r\t")
 		if strings.HasPrefix(rest, "\"") {
-			// naive JSON string extraction; handles basic escaped quotes
 			rest = rest[1:]
 			out := strings.Builder{}
 			escaped := false
@@ -383,170 +269,4 @@ func extractJSONField(raw string, keys []string) string {
 		}
 	}
 	return ""
-}
-
-func inferScope(files []string) string {
-	scopes := map[string]struct{}{}
-	for _, f := range files {
-		f = filepath.ToSlash(f)
-		parts := strings.Split(f, "/")
-		if len(parts) > 1 {
-			scopes[parts[0]] = struct{}{}
-		}
-	}
-	if len(scopes) != 1 {
-		return ""
-	}
-	for s := range scopes {
-		return s
-	}
-	return ""
-}
-
-func inferType(files []string) inference {
-	allDocs := true
-	allTests := true
-	allCI := true
-	allBuild := true
-	allChore := true
-
-	for _, f := range files {
-		f = filepath.ToSlash(f)
-		if !isDocsFile(f) {
-			allDocs = false
-		}
-		if !isTestFile(f) {
-			allTests = false
-		}
-		if !isCIFile(f) {
-			allCI = false
-		}
-		if !isBuildFile(f) {
-			allBuild = false
-		}
-		if !isChoreFile(f) {
-			allChore = false
-		}
-	}
-
-	switch {
-	case allDocs:
-		return inference{typ: "docs", reason: "only documentation files"}
-	case allTests:
-		return inference{typ: "test", reason: "only test files"}
-	case allCI:
-		return inference{typ: "ci", reason: "only CI files"}
-	case allBuild:
-		return inference{typ: "build", reason: "only build or dependency files"}
-	case allChore:
-		return inference{typ: "chore", reason: "only repo config files"}
-	default:
-		return inference{typ: "feat", reason: "mixed changes (default)"}
-	}
-}
-
-func buildSubject(typ, scope, summary string, breaking bool) string {
-	header := typ
-	if scope != "" {
-		header += "(" + scope + ")"
-	}
-	if breaking {
-		header += "!"
-	}
-	return header + ": " + summary
-}
-
-func isDocsFile(path string) bool {
-	lower := strings.ToLower(path)
-	if strings.HasPrefix(lower, "docs/") {
-		return true
-	}
-	if strings.HasPrefix(lower, "doc/") {
-		return true
-	}
-	if strings.HasPrefix(lower, "readme") {
-		return true
-	}
-	ext := strings.ToLower(filepath.Ext(lower))
-	switch ext {
-	case ".md", ".rst", ".txt":
-		return true
-	default:
-		return false
-	}
-}
-
-func isTestFile(path string) bool {
-	lower := strings.ToLower(path)
-	if strings.Contains(lower, "/test/") || strings.Contains(lower, "/tests/") {
-		return true
-	}
-	base := filepath.Base(lower)
-	if strings.HasSuffix(base, "_test.go") {
-		return true
-	}
-	if strings.HasSuffix(base, ".spec.js") || strings.HasSuffix(base, ".test.js") {
-		return true
-	}
-	if strings.HasSuffix(base, ".spec.ts") || strings.HasSuffix(base, ".test.ts") {
-		return true
-	}
-	return false
-}
-
-func isCIFile(path string) bool {
-	lower := strings.ToLower(path)
-	if strings.HasPrefix(lower, ".github/workflows/") {
-		return true
-	}
-	if strings.HasPrefix(lower, ".circleci/") {
-		return true
-	}
-	if strings.HasPrefix(lower, ".gitlab-ci") {
-		return true
-	}
-	return false
-}
-
-func isBuildFile(path string) bool {
-	lower := strings.ToLower(path)
-	base := filepath.Base(lower)
-	buildFiles := map[string]struct{}{
-		"go.mod":            {},
-		"go.sum":            {},
-		"package.json":      {},
-		"package-lock.json": {},
-		"yarn.lock":         {},
-		"pnpm-lock.yaml":    {},
-		"makefile":          {},
-		"build.gradle":      {},
-		"settings.gradle":   {},
-		"gradle.properties": {},
-		"pom.xml":           {},
-		"cargo.toml":        {},
-		"cargo.lock":        {},
-		"setup.py":          {},
-		"pyproject.toml":    {},
-		"requirements.txt":  {},
-		"gemfile":           {},
-		"gemfile.lock":      {},
-	}
-	if _, ok := buildFiles[base]; ok {
-		return true
-	}
-	return false
-}
-
-func isChoreFile(path string) bool {
-	lower := strings.ToLower(path)
-	base := filepath.Base(lower)
-	choreFiles := map[string]struct{}{
-		".editorconfig":  {},
-		".gitignore":     {},
-		".gitattributes": {},
-	}
-	if _, ok := choreFiles[base]; ok {
-		return true
-	}
-	return false
 }
