@@ -117,7 +117,7 @@ func main() {
 	var noSpinner bool
 
 	flag.StringVar(&codexCmd, "codex-cmd", "codex", "codex command name or path")
-	flag.StringVar(&codexArgs, "codex-args", "exec --skip-git-repo-check --json", "args for codex invocation")
+	flag.StringVar(&codexArgs, "codex-args", "exec --json", "args for codex invocation")
 	flag.StringVar(&skillPath, "skill-path", "", "path to SKILL.md (optional, used for prompt)")
 	flag.BoolVar(&noSpinner, "no-spinner", false, "disable spinner while codex runs")
 	flag.Parse()
