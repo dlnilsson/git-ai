@@ -32,6 +32,12 @@ type spinnerModel struct {
 	start             time.Time
 }
 
+type codexUsage struct {
+	InputTokens       int
+	CachedInputTokens int
+	OutputTokens      int
+}
+
 var spinnerMessages = []string{
 	"Generating commit message with Codex...",
 	"Summarizing staged changes...",
@@ -187,6 +193,8 @@ func generateWithCodex(codexCmd, codexArgs, skillPath, extraNote string, showSpi
 		skillText     string
 		stdout        io.ReadCloser
 		stopSpinner   func()
+		usage         codexUsage
+		startTime     time.Time
 	)
 
 	diff, err = gitDiffStaged()
@@ -225,6 +233,7 @@ func generateWithCodex(codexCmd, codexArgs, skillPath, extraNote string, showSpi
 	cmd = exec.Command(codexCmd, args...)
 	cmd.Stdin = strings.NewReader(prompt.String())
 	cmd.Stderr = os.Stderr
+	startTime = time.Now()
 	if showSpinner {
 		stopSpinner = startSpinner(randomSpinnerMessage())
 		defer stopSpinner()
@@ -249,6 +258,9 @@ func generateWithCodex(codexCmd, codexArgs, skillPath, extraNote string, showSpi
 				sendSpinnerReasoning(reasoningText)
 			}
 		}
+		if updated, ok := parseUsageJSON(line); ok {
+			usage = updated
+		}
 	}
 	if err = scanner.Err(); err != nil {
 		return "", err
@@ -263,16 +275,16 @@ func generateWithCodex(codexCmd, codexArgs, skillPath, extraNote string, showSpi
 	}
 
 	if parsed := parseCodexJSON(output); strings.TrimSpace(parsed) != "" {
-		return strings.TrimSpace(parsed), nil
+		return appendUsageComment(strings.TrimSpace(parsed), usage, time.Since(startTime)), nil
 	}
 
 	if strings.HasPrefix(output, "{") {
 		if extracted := extractJSONField(output, []string{"output", "stdout", "result", "message"}); strings.TrimSpace(extracted) != "" {
-			return strings.TrimSpace(extracted), nil
+			return appendUsageComment(strings.TrimSpace(extracted), usage, time.Since(startTime)), nil
 		}
 	}
 
-	return output, nil
+	return appendUsageComment(output, usage, time.Since(startTime)), nil
 }
 
 func randomSpinnerMessage() string {
@@ -437,6 +449,51 @@ func parseCodexJSON(raw string) string {
 		}
 	}
 	return last
+}
+
+func parseUsageJSON(raw string) (codexUsage, bool) {
+	line := strings.TrimSpace(raw)
+	if line == "" {
+		return codexUsage{}, false
+	}
+	var msg map[string]any
+	if err := json.Unmarshal([]byte(line), &msg); err != nil {
+		return codexUsage{}, false
+	}
+	if t, ok := msg["type"].(string); !ok || t != "turn.completed" {
+		return codexUsage{}, false
+	}
+	usage, ok := msg["usage"].(map[string]any)
+	if !ok {
+		return codexUsage{}, false
+	}
+	return codexUsage{
+		InputTokens:       toInt(usage["input_tokens"]),
+		CachedInputTokens: toInt(usage["cached_input_tokens"]),
+		OutputTokens:      toInt(usage["output_tokens"]),
+	}, true
+}
+
+func toInt(value any) int {
+	switch v := value.(type) {
+	case int:
+		return v
+	case float64:
+		return int(v)
+	default:
+		return 0
+	}
+}
+
+func appendUsageComment(message string, usage codexUsage, elapsed time.Duration) string {
+	if usage == (codexUsage{}) {
+		return message
+	}
+	elapsedText := elapsed.Round(100 * time.Millisecond)
+	return message + "\n\n# tokens: input=" + fmt.Sprint(usage.InputTokens) +
+		" cached=" + fmt.Sprint(usage.CachedInputTokens) +
+		" output=" + fmt.Sprint(usage.OutputTokens) +
+		" elapsed=" + elapsedText.String()
 }
 
 func extractJSONField(raw string, keys []string) string {
