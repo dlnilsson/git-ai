@@ -72,6 +72,8 @@ git-cc-ai "$@" | git commit -F - --edit
 git-cc-ai
 git-cc-ai -skill-path "C:\Users\Daniel\.codex\skills\local\git-conventional-commit\SKILL.md"
 git-cc-ai "this commit includes a security fix found in audit with external vendors"
+git-cc-ai -m
+git-cc-ai --model gpt-5.1-codex-max
 ~~~
 
 Flags:
@@ -79,6 +81,8 @@ Flags:
 - codex-args: args for codex invocation (default: exec --skip-git-repo-check --json)
 - skill-path: path to SKILL.md to append after the built-in Conventional Commits 1.0.0 spec
 - no-spinner: disable the CLI spinner while Codex runs
+- model: set Codex model explicitly (e.g. --model gpt-5.1-codex-max)
+- m: open model selection menu
 - [text]: optional free-form context appended to the prompt (positional args)
 
 The staged diff is provided to Codex and the output is used as the full commit message.

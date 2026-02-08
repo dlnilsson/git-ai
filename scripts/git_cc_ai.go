@@ -38,6 +38,12 @@ type codexUsage struct {
 	OutputTokens      int
 }
 
+type modelSelectModel struct {
+	choices  []string
+	cursor   int
+	selected string
+}
+
 var spinnerMessages = []string{
 	"Generating commit message with Codex...",
 	"Summarizing staged changes...",
@@ -149,25 +155,45 @@ func (m spinnerModel) View() string {
 	return fmt.Sprintf("\n  %s %s (%s)\n", m.spinner.View(), m.message, elapsed)
 }
 
+var models = []string{
+	"gpt-5.3-codex",
+	"gpt-5.2-codex",
+	"gpt-5.1-codex-max",
+	"gpt-5.1-codex-mini",
+}
+
 func main() {
 	var (
-		codexCmd  string
-		codexArgs string
-		skillPath string
-		noSpinner bool
-		extraNote string
+		codexCmd    string
+		codexArgs   string
+		skillPath   string
+		noSpinner   bool
+		extraNote   string
+		model       string
+		selectModel bool
 	)
 
 	flag.StringVar(&codexCmd, "codex-cmd", "codex", "codex command name or path")
 	flag.StringVar(&codexArgs, "codex-args", "exec --json", "args for codex invocation")
 	flag.StringVar(&skillPath, "skill-path", "", "path to SKILL.md (optional, used for prompt)")
 	flag.BoolVar(&noSpinner, "no-spinner", false, "disable spinner while codex runs")
+	flag.StringVar(&model, "model", "", "model name (overrides selection menu)")
+	flag.BoolVar(&selectModel, "m", false, "select model from a menu")
 	flag.Parse()
 	if flag.NArg() > 0 {
 		extraNote = strings.Join(flag.Args(), " ")
 	}
 
-	message, err := generateWithCodex(codexCmd, codexArgs, skillPath, extraNote, !noSpinner)
+	if selectModel {
+		selected, err := selectModelMenu(models)
+		if err != nil {
+			fmt.Fprintln(os.Stderr, err.Error())
+			os.Exit(1)
+		}
+		model = selected
+	}
+
+	message, err := generateWithCodex(codexCmd, codexArgs, skillPath, extraNote, model, !noSpinner)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err.Error())
 		os.Exit(1)
@@ -179,7 +205,7 @@ func main() {
 	fmt.Print(strings.TrimSpace(message))
 }
 
-func generateWithCodex(codexCmd, codexArgs, skillPath, extraNote string, showSpinner bool) (string, error) {
+func generateWithCodex(codexCmd, codexArgs, skillPath, extraNote, model string, showSpinner bool) (string, error) {
 	var (
 		args          []string
 		buffer        strings.Builder
@@ -230,6 +256,9 @@ func generateWithCodex(codexCmd, codexArgs, skillPath, extraNote string, showSpi
 	}
 
 	args = splitArgs(codexArgs)
+	if strings.TrimSpace(model) != "" {
+		args = addModelArg(args, model)
+	}
 	cmd = exec.Command(codexCmd, args...)
 	cmd.Stdin = strings.NewReader(prompt.String())
 	cmd.Stderr = os.Stderr
@@ -275,16 +304,16 @@ func generateWithCodex(codexCmd, codexArgs, skillPath, extraNote string, showSpi
 	}
 
 	if parsed := parseCodexJSON(output); strings.TrimSpace(parsed) != "" {
-		return appendUsageComment(strings.TrimSpace(parsed), usage, time.Since(startTime)), nil
+		return appendUsageComment(strings.TrimSpace(parsed), usage, time.Since(startTime), model), nil
 	}
 
 	if strings.HasPrefix(output, "{") {
 		if extracted := extractJSONField(output, []string{"output", "stdout", "result", "message"}); strings.TrimSpace(extracted) != "" {
-			return appendUsageComment(strings.TrimSpace(extracted), usage, time.Since(startTime)), nil
+			return appendUsageComment(strings.TrimSpace(extracted), usage, time.Since(startTime), model), nil
 		}
 	}
 
-	return appendUsageComment(output, usage, time.Since(startTime)), nil
+	return appendUsageComment(output, usage, time.Since(startTime), model), nil
 }
 
 func randomSpinnerMessage() string {
@@ -354,6 +383,78 @@ func splitArgs(raw string) []string {
 		return []string{}
 	}
 	return strings.Fields(raw)
+}
+
+func addModelArg(args []string, model string) []string {
+	if len(args) == 0 {
+		return []string{"-m", model}
+	}
+	out := make([]string, 0, len(args)+2)
+	if args[0] == "exec" {
+		out = append(out, args[0], "-m", model)
+		out = append(out, args[1:]...)
+		return out
+	}
+	out = append(out, args...)
+	out = append(out, "-m", model)
+	return out
+}
+
+func selectModelMenu(choices []string) (string, error) {
+	if len(choices) == 0 {
+		return "", errors.New("no models available for selection")
+	}
+	m := modelSelectModel{choices: choices}
+	p := tea.NewProgram(m)
+	final, err := p.Run()
+	if err != nil {
+		return "", err
+	}
+	selected := final.(modelSelectModel).selected
+	if strings.TrimSpace(selected) == "" {
+		return "", errors.New("no model selected")
+	}
+	return selected, nil
+}
+
+func (m modelSelectModel) Init() tea.Cmd {
+	return nil
+}
+
+func (m modelSelectModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	switch msg := msg.(type) {
+	case tea.KeyMsg:
+		switch msg.String() {
+		case "ctrl+c", "esc", "q":
+			return m, tea.Quit
+		case "enter":
+			m.selected = m.choices[m.cursor]
+			return m, tea.Quit
+		case "up", "k":
+			if m.cursor > 0 {
+				m.cursor--
+			}
+		case "down", "j":
+			if m.cursor < len(m.choices)-1 {
+				m.cursor++
+			}
+		}
+	}
+	return m, nil
+}
+
+func (m modelSelectModel) View() string {
+	var b strings.Builder
+	b.WriteString("\nSelect a model:\n\n")
+	for i, choice := range m.choices {
+		cursor := " "
+		if m.cursor == i {
+			cursor = ">"
+		}
+		b.WriteString(fmt.Sprintf(" %s %s\n", cursor, choice))
+	}
+	b.WriteString("\nEnter to select, q/esc to cancel.\n")
+	return b.String()
 }
 
 func sendSpinnerReasoning(text string) {
@@ -485,15 +586,19 @@ func toInt(value any) int {
 	}
 }
 
-func appendUsageComment(message string, usage codexUsage, elapsed time.Duration) string {
+func appendUsageComment(message string, usage codexUsage, elapsed time.Duration, model string) string {
 	if usage == (codexUsage{}) {
 		return message
 	}
 	elapsedText := elapsed.Round(100 * time.Millisecond)
-	return message + "\n\n# tokens: input=" + fmt.Sprint(usage.InputTokens) +
+	comment := message + "\n\n# tokens: input=" + fmt.Sprint(usage.InputTokens) +
 		" cached=" + fmt.Sprint(usage.CachedInputTokens) +
 		" output=" + fmt.Sprint(usage.OutputTokens) +
 		" elapsed=" + elapsedText.String()
+	if strings.TrimSpace(model) != "" {
+		comment = comment + " model=" + model
+	}
+	return comment
 }
 
 func extractJSONField(raw string, keys []string) string {
