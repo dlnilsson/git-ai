@@ -42,6 +42,7 @@ type modelSelectModel struct {
 	choices  []string
 	cursor   int
 	selected string
+	done     bool
 }
 
 var spinnerMessages = []string{
@@ -429,6 +430,7 @@ func (m modelSelectModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, tea.Quit
 		case "enter":
 			m.selected = m.choices[m.cursor]
+			m.done = true
 			return m, tea.Quit
 		case "up", "k":
 			if m.cursor > 0 {
@@ -444,6 +446,9 @@ func (m modelSelectModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (m modelSelectModel) View() string {
+	if m.done {
+		return "\r\033[2K"
+	}
 	var b strings.Builder
 	b.WriteString("\nSelect a model:\n\n")
 	for i, choice := range m.choices {
