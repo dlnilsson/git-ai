@@ -49,9 +49,29 @@ Create a simple `git-ai` wrapper so `git ai` works with the git alias (save as `
 "%~dp0git-cc-ai.exe" %*
 ~~~
 
+PowerShell wrapper that forwards arguments (save as `$(go env GOPATH)/bin/git-ai.ps1`):
+
+~~~
+param(
+    [Parameter(ValueFromRemainingArguments = $true)]
+    [string[]]$Args
+)
+
+git-cc-ai @Args | git commit -F - --edit
+~~~
+
+Bash wrapper that forwards arguments (save as `$(go env GOPATH)/bin/git-ai` and `chmod +x`):
+
+~~~
+#!/usr/bin/env bash
+set -euo pipefail
+git-cc-ai "$@" | git commit -F - --edit
+~~~
+
 ~~~
 git-cc-ai
 git-cc-ai -skill-path "C:\Users\Daniel\.codex\skills\local\git-conventional-commit\SKILL.md"
+git-cc-ai "this commit includes a security fix found in audit with external vendors"
 ~~~
 
 Flags:
@@ -59,6 +79,7 @@ Flags:
 - codex-args: args for codex invocation (default: exec --skip-git-repo-check --json)
 - skill-path: path to SKILL.md to append after the built-in Conventional Commits 1.0.0 spec
 - no-spinner: disable the CLI spinner while Codex runs
+- [text]: optional free-form context appended to the prompt (positional args)
 
 The staged diff is provided to Codex and the output is used as the full commit message.
 
@@ -74,6 +95,18 @@ Use a skill path if you want to load these instructions explicitly:
 
 ~~~
 git config --global alias.ai '!git-cc-ai -skill-path "C:\Users\Daniel\.codex\skills\local\git-conventional-commit\SKILL.md" | git commit -F - --edit'
+~~~
+
+Windows wrapper alias (PowerShell wrapper handles args):
+
+~~~
+git config --global alias.ai '!git-ai.ps1'
+~~~
+
+Unix wrapper alias (Bash wrapper handles args):
+
+~~~
+git config --global alias.ai '!git-ai'
 ~~~
 
 ## Validation

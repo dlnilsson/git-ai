@@ -120,14 +120,18 @@ func main() {
 	var codexArgs string
 	var skillPath string
 	var noSpinner bool
+	var extraNote string
 
 	flag.StringVar(&codexCmd, "codex-cmd", "codex", "codex command name or path")
 	flag.StringVar(&codexArgs, "codex-args", "exec --json", "args for codex invocation")
 	flag.StringVar(&skillPath, "skill-path", "", "path to SKILL.md (optional, used for prompt)")
 	flag.BoolVar(&noSpinner, "no-spinner", false, "disable spinner while codex runs")
 	flag.Parse()
+	if flag.NArg() > 0 {
+		extraNote = strings.Join(flag.Args(), " ")
+	}
 
-	message, err := generateWithCodex(codexCmd, codexArgs, skillPath, !noSpinner)
+	message, err := generateWithCodex(codexCmd, codexArgs, skillPath, extraNote, !noSpinner)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err.Error())
 		os.Exit(1)
@@ -139,7 +143,7 @@ func main() {
 	fmt.Print(strings.TrimSpace(message))
 }
 
-func generateWithCodex(codexCmd, codexArgs, skillPath string, showSpinner bool) (string, error) {
+func generateWithCodex(codexCmd, codexArgs, skillPath, extraNote string, showSpinner bool) (string, error) {
 	diff, err := gitDiffStaged()
 	if err != nil {
 		return "", err
@@ -167,6 +171,11 @@ func generateWithCodex(codexCmd, codexArgs, skillPath string, showSpinner bool) 
 	prompt.WriteString("Staged diff:\n")
 	prompt.WriteString(diff)
 	prompt.WriteString("\n")
+	if strings.TrimSpace(extraNote) != "" {
+		prompt.WriteString("\nExtra context:\n")
+		prompt.WriteString(strings.TrimSpace(extraNote))
+		prompt.WriteString("\n")
+	}
 
 	args := splitArgs(codexArgs)
 	cmd := exec.Command(codexCmd, args...)
