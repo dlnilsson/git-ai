@@ -213,7 +213,7 @@ func parseCodexJSON(raw string) string {
 		if line == "" {
 			continue
 		}
-		var msg map[string]interface{}
+		var msg map[string]any
 		if err := json.Unmarshal([]byte(line), &msg); err != nil {
 			continue
 		}
@@ -225,7 +225,7 @@ func parseCodexJSON(raw string) string {
 				continue
 			}
 			if t == "item.completed" {
-				if item, ok := msg["item"].(map[string]interface{}); ok {
+				if item, ok := msg["item"].(map[string]any); ok {
 					if it, ok := item["type"].(string); ok && it == "agent_message" {
 						if text, ok := item["text"].(string); ok && strings.TrimSpace(text) != "" {
 							last = text
