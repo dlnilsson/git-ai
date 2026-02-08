@@ -14,6 +14,7 @@ import (
 
 	"github.com/charmbracelet/bubbles/spinner"
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/glamour"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/muesli/termenv"
 )
@@ -23,11 +24,12 @@ type spinnerDoneMsg struct{}
 type spinnerReasoningMsg string
 
 type spinnerModel struct {
-	spinner   spinner.Model
-	message   string
-	reasoning string
-	done      bool
-	start     time.Time
+	spinner           spinner.Model
+	message           string
+	reasoning         string
+	reasoningRendered string
+	done              bool
+	start             time.Time
 }
 
 var spinnerMessages = []string{
@@ -53,6 +55,7 @@ var spinnerStyles = []spinner.Spinner{
 }
 
 var reasoningStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("241")).Render
+var markdownRenderer *glamour.TermRenderer
 
 type spinnerHandle struct {
 	program  *tea.Program
@@ -120,6 +123,7 @@ func (m spinnerModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, tea.Quit
 	case spinnerReasoningMsg:
 		m.reasoning = string(msg)
+		m.reasoningRendered = renderReasoning(m.reasoning)
 		return m, nil
 	default:
 		var cmd tea.Cmd
@@ -133,8 +137,8 @@ func (m spinnerModel) View() string {
 		return "\r\033[2K"
 	}
 	elapsed := time.Since(m.start).Round(100 * time.Millisecond)
-	if strings.TrimSpace(m.reasoning) != "" {
-		return fmt.Sprintf("\n  %s %s (%s)\n  %s\n", m.spinner.View(), m.message, elapsed, reasoningStyle(m.reasoning))
+	if strings.TrimSpace(m.reasoningRendered) != "" {
+		return fmt.Sprintf("\n  %s %s (%s)\n  %s\n", m.spinner.View(), m.message, elapsed, m.reasoningRendered)
 	}
 	return fmt.Sprintf("\n  %s %s (%s)\n", m.spinner.View(), m.message, elapsed)
 }
@@ -290,6 +294,7 @@ func randomSpinnerStyle() spinner.Spinner {
 func startSpinner(message string) func() {
 	_ = os.Setenv("CLICOLOR_FORCE", "1")
 	lipgloss.SetColorProfile(termenv.ANSI)
+	markdownRenderer = newMarkdownRenderer()
 	p := tea.NewProgram(newSpinnerModel(message), tea.WithOutput(os.Stderr))
 	handle := &spinnerHandle{
 		program:  p,
@@ -347,6 +352,28 @@ func sendSpinnerReasoning(text string) {
 	case activeSpinner.reasonCh <- text:
 	default:
 	}
+}
+
+func newMarkdownRenderer() *glamour.TermRenderer {
+	renderer, err := glamour.NewTermRenderer(
+		glamour.WithAutoStyle(),
+		glamour.WithWordWrap(0),
+	)
+	if err != nil {
+		return nil
+	}
+	return renderer
+}
+
+func renderReasoning(text string) string {
+	if markdownRenderer == nil {
+		return reasoningStyle(text)
+	}
+	out, err := markdownRenderer.Render(text)
+	if err != nil {
+		return reasoningStyle(text)
+	}
+	return out
 }
 
 func parseReasoningJSON(raw string) string {
