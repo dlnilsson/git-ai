@@ -156,11 +156,12 @@ func (m spinnerModel) View() string {
 	return fmt.Sprintf("\n  %s %s (%s)\n", m.spinner.View(), m.message, elapsed)
 }
 
+// https://developers.openai.com/codex/models/
 var models = []string{
-	"gpt-5.3-codex",
-	"gpt-5.2-codex",
 	"gpt-5.1-codex-max",
 	"gpt-5.1-codex-mini",
+	"gpt-5.2-codex",
+	"gpt-5.3-codex",
 }
 
 func main() {
