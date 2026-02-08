@@ -1,10 +1,12 @@
 package main
 
 import (
+	"bufio"
 	"encoding/json"
 	"errors"
 	"flag"
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
 	"strings"
@@ -18,11 +20,14 @@ import (
 
 type spinnerDoneMsg struct{}
 
+type spinnerReasoningMsg string
+
 type spinnerModel struct {
-	spinner spinner.Model
-	message string
-	done    bool
-	start   time.Time
+	spinner   spinner.Model
+	message   string
+	reasoning string
+	done      bool
+	start     time.Time
 }
 
 var spinnerMessages = []string{
@@ -46,6 +51,8 @@ var spinnerStyles = []spinner.Spinner{
 	spinner.Moon,
 	spinner.Monkey,
 }
+
+var activeSpinner *tea.Program
 
 // From: https://raw.githubusercontent.com/conventional-commits/conventionalcommits.org/refs/heads/master/content/v1.0.0/index.md
 const conventionalSpec = `Conventional Commits 1.0.0 Spec
@@ -99,10 +106,13 @@ func (m spinnerModel) Init() tea.Cmd {
 }
 
 func (m spinnerModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
-	switch msg.(type) {
+	switch msg := msg.(type) {
 	case spinnerDoneMsg:
 		m.done = true
 		return m, tea.Quit
+	case spinnerReasoningMsg:
+		m.reasoning = string(msg)
+		return m, nil
 	default:
 		var cmd tea.Cmd
 		m.spinner, cmd = m.spinner.Update(msg)
@@ -115,6 +125,9 @@ func (m spinnerModel) View() string {
 		return "\r\033[2K"
 	}
 	elapsed := time.Since(m.start).Round(100 * time.Millisecond)
+	if strings.TrimSpace(m.reasoning) != "" {
+		return fmt.Sprintf("\n  %s %s (%s)\n  %s\n", m.spinner.View(), m.message, elapsed, m.reasoning)
+	}
 	return fmt.Sprintf("\n  %s %s (%s)\n", m.spinner.View(), m.message, elapsed)
 }
 
@@ -150,14 +163,18 @@ func main() {
 
 func generateWithCodex(codexCmd, codexArgs, skillPath, extraNote string, showSpinner bool) (string, error) {
 	var (
-		args      []string
-		cmd       *exec.Cmd
-		diff      string
-		err       error
-		output    string
-		out       []byte
-		prompt    strings.Builder
-		skillText string
+		args          []string
+		buffer        strings.Builder
+		cmd           *exec.Cmd
+		diff          string
+		err           error
+		output        string
+		prompt        strings.Builder
+		reasoningText string
+		scanner       *bufio.Scanner
+		skillText     string
+		stdout        io.ReadCloser
+		stopSpinner   func()
 	)
 
 	diff, err = gitDiffStaged()
@@ -196,17 +213,39 @@ func generateWithCodex(codexCmd, codexArgs, skillPath, extraNote string, showSpi
 	cmd = exec.Command(codexCmd, args...)
 	cmd.Stdin = strings.NewReader(prompt.String())
 	cmd.Stderr = os.Stderr
-	var stopSpinner func()
 	if showSpinner {
 		stopSpinner = startSpinner(randomSpinnerMessage())
 		defer stopSpinner()
 	}
-	out, err = cmd.Output()
+	stdout, err = cmd.StdoutPipe()
 	if err != nil {
-		return "", fmt.Errorf("codex invocation failed: %w", err)
+		return "", err
+	}
+	if err = cmd.Start(); err != nil {
+		return "", err
 	}
 
-	output = strings.TrimSpace(string(out))
+	scanner = bufio.NewScanner(stdout)
+	scanner.Buffer(make([]byte, 0, 1024*64), 1024*1024)
+	for scanner.Scan() {
+		line := scanner.Text()
+		buffer.WriteString(line)
+		buffer.WriteByte('\n')
+		if showSpinner {
+			reasoningText = parseReasoningJSON(line)
+			if strings.TrimSpace(reasoningText) != "" {
+				sendSpinnerReasoning(reasoningText)
+			}
+		}
+	}
+	if err = scanner.Err(); err != nil {
+		return "", err
+	}
+	if err = cmd.Wait(); err != nil {
+		return "", errors.New("codex invocation failed")
+	}
+
+	output = strings.TrimSpace(buffer.String())
 	if output == "" {
 		return "", nil
 	}
@@ -244,6 +283,7 @@ func startSpinner(message string) func() {
 	_ = os.Setenv("CLICOLOR_FORCE", "1")
 	lipgloss.SetColorProfile(termenv.ANSI)
 	p := tea.NewProgram(newSpinnerModel(message), tea.WithOutput(os.Stderr))
+	activeSpinner = p
 	done := make(chan struct{})
 	go func() {
 		_, _ = p.Run()
@@ -252,6 +292,7 @@ func startSpinner(message string) func() {
 	return func() {
 		p.Send(spinnerDoneMsg{})
 		<-done
+		activeSpinner = nil
 	}
 }
 
@@ -270,6 +311,41 @@ func splitArgs(raw string) []string {
 		return []string{}
 	}
 	return strings.Fields(raw)
+}
+
+func sendSpinnerReasoning(text string) {
+	if activeSpinner == nil {
+		return
+	}
+	activeSpinner.Send(spinnerReasoningMsg(text))
+}
+
+func parseReasoningJSON(raw string) string {
+	line := strings.TrimSpace(raw)
+	if line == "" {
+		return ""
+	}
+	var msg map[string]any
+	if err := json.Unmarshal([]byte(line), &msg); err != nil {
+		return ""
+	}
+	if t, ok := msg["type"].(string); ok {
+		if t == "reasoning" {
+			if text, ok := msg["text"].(string); ok {
+				return text
+			}
+		}
+		if t == "item.completed" {
+			if item, ok := msg["item"].(map[string]any); ok {
+				if it, ok := item["type"].(string); ok && it == "reasoning" {
+					if text, ok := item["text"].(string); ok {
+						return text
+					}
+				}
+			}
+		}
+	}
+	return ""
 }
 
 func parseCodexJSON(raw string) string {
