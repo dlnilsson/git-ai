@@ -52,7 +52,15 @@ var spinnerStyles = []spinner.Spinner{
 	spinner.Monkey,
 }
 
-var activeSpinner *tea.Program
+var reasoningStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("241")).Render
+
+type spinnerHandle struct {
+	program  *tea.Program
+	reasonCh chan string
+	doneCh   chan struct{}
+}
+
+var activeSpinner *spinnerHandle
 
 // From: https://raw.githubusercontent.com/conventional-commits/conventionalcommits.org/refs/heads/master/content/v1.0.0/index.md
 const conventionalSpec = `Conventional Commits 1.0.0 Spec
@@ -126,7 +134,7 @@ func (m spinnerModel) View() string {
 	}
 	elapsed := time.Since(m.start).Round(100 * time.Millisecond)
 	if strings.TrimSpace(m.reasoning) != "" {
-		return fmt.Sprintf("\n  %s %s (%s)\n  %s\n", m.spinner.View(), m.message, elapsed, m.reasoning)
+		return fmt.Sprintf("\n  %s %s (%s)\n  %s\n", m.spinner.View(), m.message, elapsed, reasoningStyle(m.reasoning))
 	}
 	return fmt.Sprintf("\n  %s %s (%s)\n", m.spinner.View(), m.message, elapsed)
 }
@@ -283,15 +291,33 @@ func startSpinner(message string) func() {
 	_ = os.Setenv("CLICOLOR_FORCE", "1")
 	lipgloss.SetColorProfile(termenv.ANSI)
 	p := tea.NewProgram(newSpinnerModel(message), tea.WithOutput(os.Stderr))
-	activeSpinner = p
+	handle := &spinnerHandle{
+		program:  p,
+		reasonCh: make(chan string, 8),
+		doneCh:   make(chan struct{}),
+	}
+	activeSpinner = handle
 	done := make(chan struct{})
 	go func() {
 		_, _ = p.Run()
 		close(done)
 	}()
+	go func() {
+		for {
+			select {
+			case text := <-handle.reasonCh:
+				if strings.TrimSpace(text) != "" {
+					handle.program.Send(spinnerReasoningMsg(text))
+				}
+			case <-handle.doneCh:
+				return
+			}
+		}
+	}()
 	return func() {
-		p.Send(spinnerDoneMsg{})
+		handle.program.Send(spinnerDoneMsg{})
 		<-done
+		close(handle.doneCh)
 		activeSpinner = nil
 	}
 }
@@ -317,7 +343,10 @@ func sendSpinnerReasoning(text string) {
 	if activeSpinner == nil {
 		return
 	}
-	activeSpinner.Send(spinnerReasoningMsg(text))
+	select {
+	case activeSpinner.reasonCh <- text:
+	default:
+	}
 }
 
 func parseReasoningJSON(raw string) string {
