@@ -119,6 +119,81 @@ Specification
 16. The units of information that make up Conventional Commits MUST NOT be treated as case sensitive by implementors, with the exception of BREAKING CHANGE which MUST be uppercase. BREAKING-CHANGE MUST be synonymous with BREAKING CHANGE, when used as a token in a footer.
 `
 
+const commitBodyLineWidth = 72
+
+func wrapCommitMessage(msg string, width int) string {
+	paragraphs := strings.Split(msg, "\n\n")
+	out := make([]string, 0, len(paragraphs))
+	for _, p := range paragraphs {
+		p = strings.TrimSpace(p)
+		if p == "" {
+			out = append(out, "")
+			continue
+		}
+		run := strings.ReplaceAll(p, "\n", " ")
+		var (
+			line strings.Builder
+			pos  int
+		)
+		for pos < len(run) {
+			for pos < len(run) && run[pos] == ' ' {
+				pos++
+			}
+			if pos >= len(run) {
+				break
+			}
+			start := pos
+			for pos < len(run) && run[pos] != ' ' {
+				pos++
+			}
+			word := run[start:pos]
+			newLen := line.Len()
+			if newLen > 0 {
+				newLen++
+			}
+			newLen += len(word)
+			if newLen > width && line.Len() > 0 {
+				lineStr := line.String()
+				lastSent := -1
+				for i := len(lineStr) - 1; i >= 0 && i >= len(lineStr)-width; i-- {
+					if i > 0 && (lineStr[i] == '.' || lineStr[i] == '?' || lineStr[i] == '!') && lineStr[i-1] != '.' {
+						if i+1 < len(lineStr) && lineStr[i+1] == ' ' {
+							lastSent = i + 2
+							break
+						}
+						if i+1 >= len(lineStr) {
+							lastSent = i + 1
+							break
+						}
+					}
+				}
+				var breakAt int
+				if lastSent > 0 && lastSent <= len(lineStr) {
+					breakAt = lastSent
+				} else {
+					lastSpace := strings.LastIndex(lineStr, " ")
+					if lastSpace > 0 {
+						breakAt = lastSpace + 1
+					} else {
+						breakAt = len(lineStr)
+					}
+				}
+				out = append(out, strings.TrimSpace(lineStr[:breakAt]))
+				line.Reset()
+				line.WriteString(strings.TrimLeft(lineStr[breakAt:], " "))
+			}
+			if line.Len() > 0 {
+				line.WriteByte(' ')
+			}
+			line.WriteString(word)
+		}
+		if line.Len() > 0 {
+			out = append(out, line.String())
+		}
+	}
+	return strings.Join(out, "\n")
+}
+
 func newSpinnerModel(message string) spinnerModel {
 	s := spinner.New()
 	s.Spinner = randomSpinnerStyle()
@@ -282,7 +357,8 @@ func generateWithCodex(skillPath, extraNote, model string, showSpinner bool) (st
 	}
 
 	prompt.WriteString("Generate a Conventional Commit message from the staged git diff.\n")
-	prompt.WriteString("Use the instructions below and output only the commit message.\n\n")
+	prompt.WriteString("Use the instructions below and output only the commit message.\n")
+	prompt.WriteString("Limit each line in the commit body to 72 characters; wrap at sentence boundaries (e.g. after a period and space) when possible so lines do not break mid-sentence.\n\n")
 	prompt.WriteString("Instructions:\n")
 	prompt.WriteString(skillText)
 	prompt.WriteString("\n\n")
@@ -344,16 +420,16 @@ func generateWithCodex(skillPath, extraNote, model string, showSpinner bool) (st
 	}
 
 	if parsed := parseCodexJSON(output); strings.TrimSpace(parsed) != "" {
-		return appendUsageComment(strings.TrimSpace(parsed), usage, time.Since(startTime), model), nil
+		return appendUsageComment(wrapCommitMessage(strings.TrimSpace(parsed), commitBodyLineWidth), usage, time.Since(startTime), model), nil
 	}
 
 	if strings.HasPrefix(output, "{") {
 		if extracted := extractJSONField(output, []string{"output", "stdout", "result", "message"}); strings.TrimSpace(extracted) != "" {
-			return appendUsageComment(strings.TrimSpace(extracted), usage, time.Since(startTime), model), nil
+			return appendUsageComment(wrapCommitMessage(strings.TrimSpace(extracted), commitBodyLineWidth), usage, time.Since(startTime), model), nil
 		}
 	}
 
-	return appendUsageComment(output, usage, time.Since(startTime), model), nil
+	return appendUsageComment(wrapCommitMessage(output, commitBodyLineWidth), usage, time.Since(startTime), model), nil
 }
 
 func randomSpinnerMessage() string {
