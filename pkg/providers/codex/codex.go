@@ -16,16 +16,9 @@ import (
 
 	"github.com/dlnilsson/git-cc-ai/pkg/commit"
 	"github.com/dlnilsson/git-cc-ai/pkg/git"
+	"github.com/dlnilsson/git-cc-ai/pkg/providers"
 	"github.com/dlnilsson/git-cc-ai/pkg/ui"
-	"github.com/dlnilsson/git-cc-ai/pkg/util"
 )
-
-type Options struct {
-	SkillPath   string
-	ExtraNote   string
-	Model       string
-	ShowSpinner bool
-}
 
 type Registry struct {
 	mu          sync.Mutex
@@ -109,7 +102,7 @@ func Models() []string {
 }
 
 func IsModelSupported(name string) bool {
-	return util.ModelInList(name, models)
+	return modelInList(name, models)
 }
 
 // https://developers.openai.com/codex/models/
@@ -120,7 +113,7 @@ var models = []string{
 	"gpt-5.3-codex",
 }
 
-func Generate(reg *Registry, opts Options) (string, error) {
+func Generate(reg *Registry, opts providers.Options) (string, error) {
 	const (
 		codexCmd  = "codex"
 		codexArgs = "exec --json"
@@ -176,9 +169,9 @@ func Generate(reg *Registry, opts Options) (string, error) {
 		prompt.WriteString("\n")
 	}
 
-	args = util.SplitArgs(codexArgs)
+	args = splitArgs(codexArgs)
 	if strings.TrimSpace(opts.Model) != "" {
-		args = util.AddModelArg(args, opts.Model)
+		args = addModelArg(args, opts.Model)
 	}
 	cmd = exec.Command(codexCmd, args...)
 	cmd.Stdin = strings.NewReader(prompt.String())
@@ -258,7 +251,7 @@ func Generate(reg *Registry, opts Options) (string, error) {
 	}
 
 	if strings.HasPrefix(output, "{") {
-		if extracted := util.ExtractJSONField(output, []string{"output", "stdout", "result", "message"}); strings.TrimSpace(extracted) != "" {
+		if extracted := extractJSONField(output, []string{"output", "stdout", "result", "message"}); strings.TrimSpace(extracted) != "" {
 			return appendUsageComment(commit.WrapMessage(strings.TrimSpace(extracted), commit.BodyLineWidth), usage, time.Since(startTime), opts.Model), nil
 		}
 	}
@@ -368,9 +361,9 @@ func parseUsageJSON(raw string) (codexUsage, bool) {
 		return codexUsage{}, false
 	}
 	return codexUsage{
-		InputTokens:       util.ToInt(usage["input_tokens"]),
-		CachedInputTokens: util.ToInt(usage["cached_input_tokens"]),
-		OutputTokens:      util.ToInt(usage["output_tokens"]),
+		InputTokens:       toInt(usage["input_tokens"]),
+		CachedInputTokens: toInt(usage["cached_input_tokens"]),
+		OutputTokens:      toInt(usage["output_tokens"]),
 	}, true
 }
 
@@ -387,4 +380,81 @@ func appendUsageComment(message string, usage codexUsage, elapsed time.Duration,
 		comment = comment + " model=" + model
 	}
 	return comment
+}
+
+func splitArgs(raw string) []string {
+	if strings.TrimSpace(raw) == "" {
+		return []string{}
+	}
+	return strings.Fields(raw)
+}
+
+func addModelArg(args []string, model string) []string {
+	if len(args) == 0 {
+		return []string{"-m", model}
+	}
+	out := make([]string, 0, len(args)+2)
+	if args[0] == "exec" {
+		out = append(out, args[0], "-m", model)
+		out = append(out, args[1:]...)
+		return out
+	}
+	out = append(out, args...)
+	out = append(out, "-m", model)
+	return out
+}
+
+func modelInList(name string, list []string) bool {
+	for _, item := range list {
+		if item == name {
+			return true
+		}
+	}
+	return false
+}
+
+func toInt(value any) int {
+	switch v := value.(type) {
+	case int:
+		return v
+	case float64:
+		return int(v)
+	default:
+		return 0
+	}
+}
+
+func extractJSONField(raw string, keys []string) string {
+	for _, key := range keys {
+		var (
+			needle = `"` + key + `":`
+			idx    = strings.Index(raw, needle)
+		)
+		if idx == -1 {
+			continue
+		}
+		rest := raw[idx+len(needle):]
+		rest = strings.TrimLeft(rest, " \n\r\t")
+		if strings.HasPrefix(rest, "\"") {
+			rest = rest[1:]
+			out := strings.Builder{}
+			escaped := false
+			for _, r := range rest {
+				if escaped {
+					out.WriteRune(r)
+					escaped = false
+					continue
+				}
+				if r == '\\' {
+					escaped = true
+					continue
+				}
+				if r == '"' {
+					return out.String()
+				}
+				out.WriteRune(r)
+			}
+		}
+	}
+	return ""
 }

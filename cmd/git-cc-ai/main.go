@@ -8,6 +8,7 @@ import (
 	"strings"
 	"syscall"
 
+	"github.com/dlnilsson/git-cc-ai/pkg/providers"
 	"github.com/dlnilsson/git-cc-ai/pkg/providers/codex"
 	"github.com/dlnilsson/git-cc-ai/pkg/ui"
 )
@@ -43,6 +44,9 @@ edit the message in your editor before committing.
 
 Requirements:
   Codex must be installed and on your PATH (the binary invokes "codex" by default).
+
+Environment:
+  GIT_AI_BACKEND: backend provider (default: codex).
 
 Get started:
   1. Stage your changes: git add ...
@@ -102,6 +106,19 @@ func main() {
 		model = candidate
 	}
 
+	backends := map[string]providers.Backend{
+		"codex": codex.Backend{},
+	}
+	backend := strings.TrimSpace(os.Getenv("GIT_AI_BACKEND"))
+	if backend == "" {
+		backend = "codex"
+	}
+	backendHandler, ok := backends[backend]
+	if !ok {
+		fmt.Fprintf(os.Stderr, "invalid GIT_AI_BACKEND value %q\n", backend)
+		os.Exit(1)
+	}
+
 	var registry codex.Registry
 	sigCh := make(chan os.Signal, 1)
 	signal.Notify(sigCh, os.Interrupt, syscall.SIGTERM)
@@ -112,7 +129,7 @@ func main() {
 		}
 	}()
 
-	message, err := codex.Generate(&registry, codex.Options{
+	message, err := backendHandler.Generate(&registry, providers.Options{
 		SkillPath:   skillPath,
 		ExtraNote:   extraNote,
 		Model:       model,
