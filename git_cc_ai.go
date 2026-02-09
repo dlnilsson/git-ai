@@ -156,6 +156,8 @@ func (m spinnerModel) View() string {
 	return fmt.Sprintf("\n  %s %s (%s)\n", m.spinner.View(), m.message, elapsed)
 }
 
+const menuSentinel = "menu"
+
 // https://developers.openai.com/codex/models/
 var models = []string{
 	"gpt-5.1-codex-max",
@@ -164,35 +166,70 @@ var models = []string{
 	"gpt-5.3-codex",
 }
 
+func injectBareM() {
+	args := os.Args
+	var out []string
+	for i := 0; i < len(args); i++ {
+		out = append(out, args[i])
+		if args[i] != "-m" {
+			continue
+		}
+		next := i + 1
+		if next >= len(args) || strings.HasPrefix(args[next], "-") {
+			out = append(out, menuSentinel)
+			continue
+		}
+		out = append(out, args[next])
+		i = next
+	}
+	os.Args = out
+}
+
 func main() {
 	var (
-		codexCmd    string
-		codexArgs   string
-		skillPath   string
-		noSpinner   bool
-		extraNote   string
-		model       string
-		selectModel bool
+		codexCmd  string
+		codexArgs string
+		mFlag     string
+		model     string
+		noSpinner bool
+		skillPath string
+		extraNote string
 	)
 
+	injectBareM()
 	flag.StringVar(&codexCmd, "codex-cmd", "codex", "codex command name or path")
 	flag.StringVar(&codexArgs, "codex-args", "exec --json", "args for codex invocation")
 	flag.StringVar(&skillPath, "skill-path", "", "path to SKILL.md (optional, used for prompt)")
 	flag.BoolVar(&noSpinner, "no-spinner", false, "disable spinner while codex runs")
-	flag.StringVar(&model, "model", "", "model name (overrides selection menu)")
-	flag.BoolVar(&selectModel, "m", false, "select model from a menu")
+	flag.StringVar(&model, "model", "", "model name (overrides -m)")
+	flag.StringVar(&mFlag, "m", "", "model name, or no value for interactive selection")
 	flag.Parse()
 	if flag.NArg() > 0 {
 		extraNote = strings.Join(flag.Args(), " ")
 	}
 
-	if selectModel {
+	switch {
+	case strings.TrimSpace(model) != "":
+		model = strings.TrimSpace(model)
+		if !modelInList(model, models) {
+			fmt.Fprintf(os.Stderr, "invalid model %q (use -m for interactive pick, or one of: %s)\n", model, strings.Join(models, ", "))
+			os.Exit(1)
+		}
+	case strings.TrimSpace(mFlag) == "":
+	case mFlag == menuSentinel:
 		selected, err := selectModelMenu(models)
 		if err != nil {
 			fmt.Fprintln(os.Stderr, err.Error())
 			os.Exit(1)
 		}
 		model = selected
+	default:
+		candidate := strings.TrimSpace(mFlag)
+		if !modelInList(candidate, models) {
+			fmt.Fprintf(os.Stderr, "invalid model %q (use -m for interactive pick, or one of: %s)\n", candidate, strings.Join(models, ", "))
+			os.Exit(1)
+		}
+		model = candidate
 	}
 
 	message, err := generateWithCodex(codexCmd, codexArgs, skillPath, extraNote, model, !noSpinner)
@@ -407,6 +444,15 @@ func addModelArg(args []string, model string) []string {
 	out = append(out, args...)
 	out = append(out, "-m", model)
 	return out
+}
+
+func modelInList(name string, list []string) bool {
+	for _, s := range list {
+		if s == name {
+			return true
+		}
+	}
+	return false
 }
 
 func selectModelMenu(choices []string) (string, error) {
