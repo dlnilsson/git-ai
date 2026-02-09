@@ -326,11 +326,12 @@ func (m spinnerModel) View() string {
 	if m.done {
 		return "\r\033[2K"
 	}
-	elapsed := time.Since(m.start).Round(100 * time.Millisecond)
+	elapsed := time.Since(m.start).Seconds()
+	elapsedStr := fmt.Sprintf("%.1fs", elapsed)
 	if strings.TrimSpace(m.reasoningRendered) != "" {
-		return fmt.Sprintf("\n  %s %s (%s)\n  %s\n", m.spinner.View(), m.message, elapsed, m.reasoningRendered)
+		return fmt.Sprintf("\n  %s %s (%s)\n  %s\n", m.spinner.View(), m.message, elapsedStr, m.reasoningRendered)
 	}
-	return fmt.Sprintf("\n  %s %s (%s)\n", m.spinner.View(), m.message, elapsed)
+	return fmt.Sprintf("\n  %s %s (%s)\n", m.spinner.View(), m.message, elapsedStr)
 }
 
 const menuSentinel = "menu"
