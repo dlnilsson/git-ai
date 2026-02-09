@@ -171,6 +171,7 @@ func Generate(reg *Registry, opts providers.Options) (string, error) {
 	}
 
 	args = splitArgs(codexArgs)
+	args = addNoAltScreenArg(args)
 	if strings.TrimSpace(opts.Model) != "" {
 		args = addModelArg(args, opts.Model)
 	}
@@ -395,14 +396,29 @@ func addModelArg(args []string, model string) []string {
 		return []string{"-m", model}
 	}
 	out := make([]string, 0, len(args)+2)
-	if args[0] == "exec" {
-		out = append(out, args[0], "-m", model)
-		out = append(out, args[1:]...)
+	if execIdx := slices.Index(args, "exec"); execIdx != -1 {
+		out = append(out, args[:execIdx+1]...)
+		out = append(out, "-m", model)
+		out = append(out, args[execIdx+1:]...)
 		return out
 	}
 	out = append(out, args...)
 	out = append(out, "-m", model)
 	return out
+}
+
+func addNoAltScreenArg(args []string) []string {
+	if len(args) == 0 {
+		return []string{"--no-alt-screen"}
+	}
+	if execIdx := slices.Index(args, "exec"); execIdx != -1 {
+		out := make([]string, 0, len(args)+1)
+		out = append(out, args[:execIdx]...)
+		out = append(out, "--no-alt-screen")
+		out = append(out, args[execIdx:]...)
+		return out
+	}
+	return append(args, "--no-alt-screen")
 }
 
 func modelInList(name string, list []string) bool {
