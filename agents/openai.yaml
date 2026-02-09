@@ -1,4 +1,0 @@
-interface:
-  display_name: "Git Conventional Commit"
-  short_description: "Generate Conventional Commit messages from staged changes"
-  default_prompt: "Generate a Conventional Commit message from staged git changes."
