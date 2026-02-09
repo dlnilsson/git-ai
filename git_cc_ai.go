@@ -370,7 +370,14 @@ func startSpinner(message string) func() {
 	}
 }
 
+var errNotGitDir = errors.New("not a git directory")
+
 func gitDiffStaged() (string, error) {
+	check := exec.Command("git", "rev-parse", "--git-dir")
+	check.Stderr = io.Discard
+	if err := check.Run(); err != nil {
+		return "", errNotGitDir
+	}
 	cmd := exec.Command("git", "diff", "--staged")
 	cmd.Stderr = os.Stderr
 	out, err := cmd.Output()
