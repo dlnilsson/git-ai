@@ -9,6 +9,7 @@ import (
 	"io"
 	"os"
 	"os/exec"
+	"slices"
 	"strings"
 	"time"
 
@@ -447,12 +448,7 @@ func addModelArg(args []string, model string) []string {
 }
 
 func modelInList(name string, list []string) bool {
-	for _, s := range list {
-		if s == name {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(list, name)
 }
 
 func selectModelMenu(choices []string) (string, error) {
