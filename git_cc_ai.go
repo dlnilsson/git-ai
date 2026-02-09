@@ -334,6 +334,7 @@ func (m spinnerModel) View() string {
 }
 
 const menuSentinel = "menu"
+const errInvalidModelFmt = "invalid model %q (use -m for interactive pick, or one of: %s)\n"
 
 // https://developers.openai.com/codex/models/
 var models = []string{
@@ -409,6 +410,7 @@ func main() {
 	case strings.TrimSpace(model) != "":
 		model = strings.TrimSpace(model)
 		if !modelInList(model, models) {
+			fmt.Fprintf(os.Stderr, errInvalidModelFmt, model, strings.Join(models, ", "))
 			os.Exit(1)
 		}
 
@@ -422,6 +424,7 @@ func main() {
 	default:
 		candidate := strings.TrimSpace(mFlag)
 		if !modelInList(candidate, models) {
+			fmt.Fprintf(os.Stderr, errInvalidModelFmt, candidate, strings.Join(models, ", "))
 			os.Exit(1)
 		}
 		model = candidate
@@ -439,9 +442,11 @@ func main() {
 
 	message, err := generateWithCodex(&registry, skillPath, extraNote, model, !noSpinner)
 	if err != nil {
+		fmt.Fprintln(os.Stderr, err.Error())
 		os.Exit(1)
 	}
 	if strings.TrimSpace(message) == "" {
+		fmt.Fprintln(os.Stderr, "No commit message generated.")
 		os.Exit(1)
 	}
 	fmt.Print(strings.TrimSpace(message))
