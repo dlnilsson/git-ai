@@ -187,8 +187,6 @@ func injectBareM() {
 
 func main() {
 	var (
-		codexCmd  string
-		codexArgs string
 		mFlag     string
 		model     string
 		noSpinner bool
@@ -197,8 +195,6 @@ func main() {
 	)
 
 	injectBareM()
-	flag.StringVar(&codexCmd, "codex-cmd", "codex", "codex command name or path")
-	flag.StringVar(&codexArgs, "codex-args", "exec --json", "args for codex invocation")
 	flag.StringVar(&skillPath, "skill-path", "", "path to SKILL.md (optional, used for prompt)")
 	flag.BoolVar(&noSpinner, "no-spinner", false, "disable spinner while codex runs")
 	flag.StringVar(&model, "model", "", "model name (overrides -m)")
@@ -232,7 +228,7 @@ func main() {
 		model = candidate
 	}
 
-	message, err := generateWithCodex(codexCmd, codexArgs, skillPath, extraNote, model, !noSpinner)
+	message, err := generateWithCodex(skillPath, extraNote, model, !noSpinner)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err.Error())
 		os.Exit(1)
@@ -244,7 +240,11 @@ func main() {
 	fmt.Print(strings.TrimSpace(message))
 }
 
-func generateWithCodex(codexCmd, codexArgs, skillPath, extraNote, model string, showSpinner bool) (string, error) {
+func generateWithCodex(skillPath, extraNote, model string, showSpinner bool) (string, error) {
+	const (
+		codexCmd  = "codex"
+		codexArgs = "exec --json"
+	)
 	var (
 		args          []string
 		buffer        strings.Builder
