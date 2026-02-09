@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"os/signal"
+	"sort"
 	"strings"
 	"syscall"
 
@@ -113,9 +114,14 @@ func main() {
 	if backend == "" {
 		backend = "codex"
 	}
-	backendHandler, ok := backends[backend]
+	cli, ok := backends[backend]
 	if !ok {
-		fmt.Fprintf(os.Stderr, "invalid GIT_AI_BACKEND value %q\n", backend)
+		available := make([]string, 0, len(backends))
+		for name := range backends {
+			available = append(available, name)
+		}
+		sort.Strings(available)
+		fmt.Fprintf(os.Stderr, "invalid GIT_AI_BACKEND value %q (available: %s)\n", backend, strings.Join(available, ", "))
 		os.Exit(1)
 	}
 
@@ -129,7 +135,7 @@ func main() {
 		}
 	}()
 
-	message, err := backendHandler.Generate(&registry, providers.Options{
+	message, err := cli.Generate(&registry, providers.Options{
 		SkillPath:   skillPath,
 		ExtraNote:   extraNote,
 		Model:       model,
