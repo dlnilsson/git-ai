@@ -1,4 +1,4 @@
-module git-cc-ai
+module github.com/dlnilsson/git-cc-ai
 
 go 1.24.2
 

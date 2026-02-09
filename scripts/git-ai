@@ -1,0 +1,4 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+git-cc-ai "$@" | git commit -F - --edit
