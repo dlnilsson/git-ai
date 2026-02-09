@@ -1,4 +1,9 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-git-cc-ai "$@" | git commit -F - --edit
+tmp=$(mktemp)
+trap 'rm -f "$tmp"' EXIT
+{ git-cc-ai "$@" | git commit -F - --edit; } 2> "$tmp"
+ret=$?
+cat "$tmp" >&2
+exit $ret
