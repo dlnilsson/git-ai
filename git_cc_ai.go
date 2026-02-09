@@ -9,8 +9,12 @@ import (
 	"io"
 	"os"
 	"os/exec"
+	"os/signal"
+	"runtime"
 	"slices"
 	"strings"
+	"sync"
+	"syscall"
 	"time"
 
 	"github.com/charmbracelet/bubbles/spinner"
@@ -31,6 +35,7 @@ type spinnerModel struct {
 	reasoningRendered string
 	done              bool
 	start             time.Time
+	registry          *subprocessRegistry
 }
 
 type codexUsage struct {
@@ -78,6 +83,98 @@ type spinnerHandle struct {
 }
 
 var activeSpinner *spinnerHandle
+
+type subprocessRegistry struct {
+	mu          sync.Mutex
+	cmd         *exec.Cmd
+	stopSpinner func()
+	threadID    string
+	interrupted bool
+}
+
+func (r *subprocessRegistry) register(cmd *exec.Cmd, stopSpinner func()) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.cmd = cmd
+	r.stopSpinner = stopSpinner
+	r.interrupted = false
+}
+
+func (r *subprocessRegistry) wasInterrupted() bool {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return r.interrupted
+}
+
+func (r *subprocessRegistry) getThreadID() string {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return r.threadID
+}
+
+func (r *subprocessRegistry) setThreadID(id string) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if r.threadID == "" && strings.TrimSpace(id) != "" {
+		r.threadID = strings.TrimSpace(id)
+	}
+}
+
+func (r *subprocessRegistry) unregister() {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.cmd = nil
+	r.stopSpinner = nil
+	r.threadID = ""
+}
+
+func (r *subprocessRegistry) forwardSignal(sig os.Signal) {
+	r.mu.Lock()
+	cmd := r.cmd
+	if sig == os.Interrupt {
+		r.interrupted = true
+	}
+	r.mu.Unlock()
+	if cmd == nil || cmd.Process == nil {
+		return
+	}
+	if runtime.GOOS != "windows" && (sig == os.Interrupt || sig == syscall.SIGTERM) {
+		_ = syscall.Kill(-cmd.Process.Pid, sig.(syscall.Signal))
+	} else {
+		_ = cmd.Process.Signal(sig)
+	}
+}
+
+var (
+	terminalOutput     io.Writer
+	terminalOutputOnce sync.Once
+)
+
+func getTerminalOutput() io.Writer {
+	terminalOutputOnce.Do(func() {
+		if runtime.GOOS == "windows" {
+			terminalOutput = os.Stderr
+			return
+		}
+		f, err := os.OpenFile("/dev/tty", os.O_WRONLY, 0)
+		if err != nil {
+			terminalOutput = io.Discard
+			return
+		}
+		terminalOutput = f
+	})
+	return terminalOutput
+}
+
+func (r *subprocessRegistry) stopSpinnerIfSet() {
+	r.mu.Lock()
+	stop := r.stopSpinner
+	r.stopSpinner = nil
+	r.mu.Unlock()
+	if stop != nil {
+		stop()
+	}
+}
 
 // From: https://raw.githubusercontent.com/conventional-commits/conventionalcommits.org/refs/heads/master/content/v1.0.0/index.md
 const conventionalSpec = `Conventional Commits 1.0.0 Spec
@@ -194,11 +291,11 @@ func wrapCommitMessage(msg string, width int) string {
 	return strings.Join(out, "\n")
 }
 
-func newSpinnerModel(message string) spinnerModel {
+func newSpinnerModel(message string, reg *subprocessRegistry) spinnerModel {
 	s := spinner.New()
 	s.Spinner = randomSpinnerStyle()
 	s.Style = lipgloss.NewStyle().Foreground(lipgloss.Color("205"))
-	return spinnerModel{spinner: s, message: message, start: time.Now()}
+	return spinnerModel{spinner: s, message: message, start: time.Now(), registry: reg}
 }
 
 func (m spinnerModel) Init() tea.Cmd {
@@ -214,11 +311,15 @@ func (m spinnerModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.reasoning = string(msg)
 		m.reasoningRendered = renderReasoning(m.reasoning)
 		return m, nil
-	default:
-		var cmd tea.Cmd
-		m.spinner, cmd = m.spinner.Update(msg)
-		return m, cmd
+	case tea.KeyMsg:
+		if msg.String() == "ctrl+c" && m.registry != nil {
+			m.registry.forwardSignal(os.Interrupt)
+			return m, tea.Quit
+		}
 	}
+	var cmd tea.Cmd
+	m.spinner, cmd = m.spinner.Update(msg)
+	return m, cmd
 }
 
 func (m spinnerModel) View() string {
@@ -284,39 +385,45 @@ func main() {
 	case strings.TrimSpace(model) != "":
 		model = strings.TrimSpace(model)
 		if !modelInList(model, models) {
-			fmt.Fprintf(os.Stderr, "invalid model %q (use -m for interactive pick, or one of: %s)\n", model, strings.Join(models, ", "))
 			os.Exit(1)
 		}
+
 	case strings.TrimSpace(mFlag) == "":
 	case mFlag == menuSentinel:
 		selected, err := selectModelMenu(models)
 		if err != nil {
-			fmt.Fprintln(os.Stderr, err.Error())
 			os.Exit(1)
 		}
 		model = selected
 	default:
 		candidate := strings.TrimSpace(mFlag)
 		if !modelInList(candidate, models) {
-			fmt.Fprintf(os.Stderr, "invalid model %q (use -m for interactive pick, or one of: %s)\n", candidate, strings.Join(models, ", "))
 			os.Exit(1)
 		}
 		model = candidate
 	}
 
-	message, err := generateWithCodex(skillPath, extraNote, model, !noSpinner)
+	var registry subprocessRegistry
+	sigCh := make(chan os.Signal, 1)
+	signal.Notify(sigCh, os.Interrupt, syscall.SIGTERM)
+	go func() {
+		for sig := range sigCh {
+			registry.forwardSignal(sig)
+			registry.stopSpinnerIfSet()
+		}
+	}()
+
+	message, err := generateWithCodex(&registry, skillPath, extraNote, model, !noSpinner)
 	if err != nil {
-		fmt.Fprintln(os.Stderr, err.Error())
 		os.Exit(1)
 	}
 	if strings.TrimSpace(message) == "" {
-		fmt.Fprintln(os.Stderr, "Codex returned empty output.")
 		os.Exit(1)
 	}
 	fmt.Print(strings.TrimSpace(message))
 }
 
-func generateWithCodex(skillPath, extraNote, model string, showSpinner bool) (string, error) {
+func generateWithCodex(reg *subprocessRegistry, skillPath, extraNote, model string, showSpinner bool) (string, error) {
 	const (
 		codexCmd  = "codex"
 		codexArgs = "exec --json"
@@ -332,6 +439,7 @@ func generateWithCodex(skillPath, extraNote, model string, showSpinner bool) (st
 		reasoningText string
 		scanner       *bufio.Scanner
 		skillText     string
+		stderr        io.ReadCloser
 		stdout        io.ReadCloser
 		stopSpinner   func()
 		usage         codexUsage
@@ -377,19 +485,36 @@ func generateWithCodex(skillPath, extraNote, model string, showSpinner bool) (st
 	}
 	cmd = exec.Command(codexCmd, args...)
 	cmd.Stdin = strings.NewReader(prompt.String())
-	cmd.Stderr = os.Stderr
+	if runtime.GOOS != "windows" {
+		cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
+	}
 	startTime = time.Now()
 	if showSpinner {
-		stopSpinner = startSpinner(randomSpinnerMessage())
+		stopSpinner = startSpinner(randomSpinnerMessage(), reg)
 		defer stopSpinner()
 	}
 	stdout, err = cmd.StdoutPipe()
 	if err != nil {
 		return "", err
 	}
+	stderr, err = cmd.StderrPipe()
+	if err != nil {
+		return "", err
+	}
 	if err = cmd.Start(); err != nil {
 		return "", err
 	}
+	reg.register(cmd, stopSpinner)
+	defer reg.unregister()
+
+	go func() {
+		sc := bufio.NewScanner(stderr)
+		for sc.Scan() {
+			if id := parseThreadStartedJSON(sc.Text()); id != "" {
+				reg.setThreadID(id)
+			}
+		}
+	}()
 
 	scanner = bufio.NewScanner(stdout)
 	scanner.Buffer(make([]byte, 0, 1024*64), 1024*1024)
@@ -397,6 +522,9 @@ func generateWithCodex(skillPath, extraNote, model string, showSpinner bool) (st
 		line := scanner.Text()
 		buffer.WriteString(line)
 		buffer.WriteByte('\n')
+		if id := parseThreadStartedJSON(line); id != "" {
+			reg.setThreadID(id)
+		}
 		if showSpinner {
 			reasoningText = parseReasoningJSON(line)
 			if strings.TrimSpace(reasoningText) != "" {
@@ -413,10 +541,19 @@ func generateWithCodex(skillPath, extraNote, model string, showSpinner bool) (st
 	if err = cmd.Wait(); err != nil {
 		return "", errors.New("codex invocation failed")
 	}
+	if reg.wasInterrupted() {
+		if id := reg.getThreadID(); id != "" {
+			fmt.Fprintln(os.Stderr, id)
+		}
+		return "", errors.New("codex invocation failed")
+	}
 
 	output = strings.TrimSpace(buffer.String())
 	if output == "" {
 		return "", nil
+	}
+	if codexOutputIndicatesFailure(output) {
+		return "", errors.New("codex invocation failed")
 	}
 
 	if parsed := parseCodexJSON(output); strings.TrimSpace(parsed) != "" {
@@ -448,11 +585,11 @@ func randomSpinnerStyle() spinner.Spinner {
 	return spinnerStyles[int(seed%int64(len(spinnerStyles)))]
 }
 
-func startSpinner(message string) func() {
+func startSpinner(message string, reg *subprocessRegistry) func() {
 	_ = os.Setenv("CLICOLOR_FORCE", "1")
 	lipgloss.SetColorProfile(termenv.ANSI)
 	markdownRenderer = newMarkdownRenderer()
-	p := tea.NewProgram(newSpinnerModel(message), tea.WithOutput(os.Stderr))
+	p := tea.NewProgram(newSpinnerModel(message, reg), tea.WithOutput(getTerminalOutput()))
 	handle := &spinnerHandle{
 		program:  p,
 		reasonCh: make(chan string, 8),
@@ -681,6 +818,28 @@ func parseCodexJSON(raw string) string {
 		}
 	}
 	return last
+}
+
+func codexOutputIndicatesFailure(output string) bool {
+	return strings.Contains(output, "failed:")
+}
+
+func parseThreadStartedJSON(raw string) string {
+	line := strings.TrimSpace(raw)
+	if line == "" {
+		return ""
+	}
+	var msg map[string]any
+	if err := json.Unmarshal([]byte(line), &msg); err != nil {
+		return ""
+	}
+	if t, ok := msg["type"].(string); !ok || t != "thread.started" {
+		return ""
+	}
+	if id, ok := msg["thread_id"].(string); ok {
+		return id
+	}
+	return ""
 }
 
 func parseUsageJSON(raw string) (codexUsage, bool) {
