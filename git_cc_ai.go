@@ -362,6 +362,29 @@ func injectBareM() {
 	os.Args = out
 }
 
+func printHelp() {
+	const help = `git-cc-ai — generate conventional commit messages from staged changes using Codex.
+
+The tool runs Codex on your staged diff and prints a conventional commit message
+to stdout. Use it with git commit (e.g. via the git-ai script) and optionally
+edit the message in your editor before committing.
+
+Requirements:
+  Codex must be installed and on your PATH (the binary invokes "codex" by default).
+
+Get started:
+  1. Stage your changes: git add ...
+  2. Run: git ai (or git-cc-ai if not using a git alias)
+  3. Codex drafts a conventional commit message and opens your editor so you can
+     confirm or edit, then commit.
+
+Flags:
+`
+	fmt.Fprint(os.Stderr, help)
+	flag.PrintDefaults()
+	fmt.Fprintln(os.Stderr)
+}
+
 func main() {
 	var (
 		mFlag     string
@@ -376,6 +399,7 @@ func main() {
 	flag.BoolVar(&noSpinner, "no-spinner", false, "disable spinner while codex runs")
 	flag.StringVar(&model, "model", "", "model name (overrides -m)")
 	flag.StringVar(&mFlag, "m", "", "model name, or no value for interactive selection")
+	flag.Usage = printHelp
 	flag.Parse()
 	if flag.NArg() > 0 {
 		extraNote = strings.Join(flag.Args(), " ")
