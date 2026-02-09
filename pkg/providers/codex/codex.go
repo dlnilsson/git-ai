@@ -9,6 +9,7 @@ import (
 	"os"
 	"os/exec"
 	"runtime"
+	"slices"
 	"strings"
 	"sync"
 	"syscall"
@@ -405,12 +406,7 @@ func addModelArg(args []string, model string) []string {
 }
 
 func modelInList(name string, list []string) bool {
-	for _, item := range list {
-		if item == name {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(list, name)
 }
 
 func toInt(value any) int {
