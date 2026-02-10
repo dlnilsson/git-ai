@@ -1,6 +1,6 @@
 # git ai
 
-[![asciicast](https://asciinema.org/a/KWh6aVDScK35Pzjk.svg)](https://asciinema.org/a/KWh6aVDScK35Pzjk)
+[![asciicast](https://asciinema.org/a/uHPdXi9wsZ23xQ42.svg)](https://asciinema.org/a/uHPdXi9wsZ23xQ42)
 
 Generates conventional commit messages from your staged changes using Codex or Claude. Use the generated message with `git commit` (e.g. via the `git-ai` script) and optionally edit it in your editor before committing.
 
