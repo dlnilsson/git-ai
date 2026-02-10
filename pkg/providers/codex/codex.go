@@ -126,7 +126,6 @@ func Generate(reg *Registry, opts providers.Options) (string, error) {
 		diff          string
 		err           error
 		output        string
-		prompt        strings.Builder
 		reasoningText string
 		scanner       *bufio.Scanner
 		skillText     string
@@ -155,20 +154,11 @@ func Generate(reg *Registry, opts providers.Options) (string, error) {
 		}
 	}
 
-	prompt.WriteString("Generate a Conventional Commit message from the staged git diff.\n")
-	prompt.WriteString("Use the instructions below and output only the commit message.\n")
-	prompt.WriteString("Limit each line in the commit body to 72 characters; wrap at sentence boundaries (e.g. after a period and space) when possible so lines do not break mid-sentence.\n\n")
-	prompt.WriteString("Instructions:\n")
-	prompt.WriteString(skillText)
-	prompt.WriteString("\n\n")
-	prompt.WriteString("Staged diff:\n")
-	prompt.WriteString(diff)
-	prompt.WriteString("\n")
-	if strings.TrimSpace(opts.ExtraNote) != "" {
-		prompt.WriteString("\nExtra context:\n")
-		prompt.WriteString(strings.TrimSpace(opts.ExtraNote))
-		prompt.WriteString("\n")
-	}
+	prompt := commit.BuildConventionalPrompt(commit.PromptOptions{
+		SkillText: skillText,
+		Diff:      diff,
+		ExtraNote: opts.ExtraNote,
+	})
 
 	args = splitArgs(codexArgs)
 	args = addNoAltScreenArg(args)
@@ -176,7 +166,7 @@ func Generate(reg *Registry, opts providers.Options) (string, error) {
 		args = addModelArg(args, opts.Model)
 	}
 	cmd = exec.Command(codexCmd, args...)
-	cmd.Stdin = strings.NewReader(prompt.String())
+	cmd.Stdin = strings.NewReader(prompt)
 	if runtime.GOOS != "windows" {
 		cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
 	}
