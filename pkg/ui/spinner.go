@@ -27,6 +27,7 @@ type spinnerReasoningMsg string
 type spinnerModel struct {
 	spinner           spinner.Model
 	message           string
+	backend           string
 	reasoning         string
 	reasoningRendered string
 	done              bool
@@ -41,7 +42,7 @@ type spinnerHandle struct {
 }
 
 var spinnerMessages = []string{
-	"Generating commit message with Codex...",
+	"Generating commit message...",
 	"Summarizing staged changes...",
 	"Drafting Conventional Commit...",
 	"Giving birth to skynet",
@@ -87,11 +88,11 @@ func getTerminalOutput() io.Writer {
 	return terminalOutput
 }
 
-func StartSpinner(message string, forwarder SignalForwarder) func() {
+func StartSpinner(message string, backend string, forwarder SignalForwarder) func() {
 	_ = os.Setenv("CLICOLOR_FORCE", "1")
 	lipgloss.SetColorProfile(termenv.ANSI)
 	markdownRenderer = newMarkdownRenderer()
-	p := tea.NewProgram(newSpinnerModel(message, forwarder), tea.WithOutput(getTerminalOutput()))
+	p := tea.NewProgram(newSpinnerModel(message, backend, forwarder), tea.WithOutput(getTerminalOutput()))
 	handle := &spinnerHandle{
 		program:  p,
 		reasonCh: make(chan string, 8),
@@ -141,11 +142,11 @@ func RandomSpinnerMessage() string {
 	return spinnerMessages[int(seed%int64(len(spinnerMessages)))]
 }
 
-func newSpinnerModel(message string, forwarder SignalForwarder) spinnerModel {
+func newSpinnerModel(message string, backend string, forwarder SignalForwarder) spinnerModel {
 	s := spinner.New()
 	s.Spinner = randomSpinnerStyle()
 	s.Style = lipgloss.NewStyle().Foreground(lipgloss.Color("205"))
-	return spinnerModel{spinner: s, message: message, start: time.Now(), forwarder: forwarder}
+	return spinnerModel{spinner: s, message: message, backend: backend, start: time.Now(), forwarder: forwarder}
 }
 
 func (m spinnerModel) Init() tea.Cmd {
@@ -178,10 +179,14 @@ func (m spinnerModel) View() string {
 	}
 	elapsed := time.Since(m.start).Seconds()
 	elapsedStr := fmt.Sprintf("%.1fs", elapsed)
-	if strings.TrimSpace(m.reasoningRendered) != "" {
-		return fmt.Sprintf("\n  %s %s (%s)\n  %s\n", m.spinner.View(), m.message, elapsedStr, m.reasoningRendered)
+	backendTag := ""
+	if m.backend != "" {
+		backendTag = " " + reasoningStyle("(using "+m.backend+")")
 	}
-	return fmt.Sprintf("\n  %s %s (%s)\n", m.spinner.View(), m.message, elapsedStr)
+	if strings.TrimSpace(m.reasoningRendered) != "" {
+		return fmt.Sprintf("\n  %s %s%s (%s)\n  %s\n", m.spinner.View(), m.message, backendTag, elapsedStr, m.reasoningRendered)
+	}
+	return fmt.Sprintf("\n  %s %s%s (%s)\n", m.spinner.View(), m.message, backendTag, elapsedStr)
 }
 
 func newMarkdownRenderer() *glamour.TermRenderer {

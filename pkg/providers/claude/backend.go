@@ -1,4 +1,4 @@
-package codex
+package claude
 
 import (
 	"github.com/dlnilsson/git-cc-ai/pkg/providers"

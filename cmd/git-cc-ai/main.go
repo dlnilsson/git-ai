@@ -10,6 +10,7 @@ import (
 	"syscall"
 
 	"github.com/dlnilsson/git-cc-ai/pkg/providers"
+	"github.com/dlnilsson/git-cc-ai/pkg/providers/claude"
 	"github.com/dlnilsson/git-cc-ai/pkg/providers/codex"
 	"github.com/dlnilsson/git-cc-ai/pkg/ui"
 )
@@ -82,33 +83,9 @@ func main() {
 		extraNote = strings.Join(flag.Args(), " ")
 	}
 
-	models := codex.Models()
-
-	switch {
-	case strings.TrimSpace(model) != "":
-		model = strings.TrimSpace(model)
-		if !codex.IsModelSupported(model) {
-			fmt.Fprintf(os.Stderr, errInvalidModelFmt, model, strings.Join(models, ", "))
-			os.Exit(1)
-		}
-	case strings.TrimSpace(mFlag) == "":
-	case mFlag == menuSentinel:
-		selected, err := ui.SelectModelMenu(models)
-		if err != nil {
-			os.Exit(1)
-		}
-		model = selected
-	default:
-		candidate := strings.TrimSpace(mFlag)
-		if !codex.IsModelSupported(candidate) {
-			fmt.Fprintf(os.Stderr, errInvalidModelFmt, candidate, strings.Join(models, ", "))
-			os.Exit(1)
-		}
-		model = candidate
-	}
-
 	backends := map[string]providers.Backend{
-		"codex": codex.Backend{},
+		"codex":  codex.Backend{},
+		"claude": claude.Backend{},
 	}
 	backend := strings.TrimSpace(os.Getenv("GIT_AI_BACKEND"))
 	if backend == "" {
@@ -125,7 +102,33 @@ func main() {
 		os.Exit(1)
 	}
 
-	var registry codex.Registry
+	if backend == "codex" {
+		models := codex.Models()
+		switch {
+		case strings.TrimSpace(model) != "":
+			model = strings.TrimSpace(model)
+			if !codex.IsModelSupported(model) {
+				fmt.Fprintf(os.Stderr, errInvalidModelFmt, model, strings.Join(models, ", "))
+				os.Exit(1)
+			}
+		case strings.TrimSpace(mFlag) == "":
+		case mFlag == menuSentinel:
+			selected, err := ui.SelectModelMenu(models)
+			if err != nil {
+				os.Exit(1)
+			}
+			model = selected
+		default:
+			candidate := strings.TrimSpace(mFlag)
+			if !codex.IsModelSupported(candidate) {
+				fmt.Fprintf(os.Stderr, errInvalidModelFmt, candidate, strings.Join(models, ", "))
+				os.Exit(1)
+			}
+			model = candidate
+		}
+	}
+
+	var registry providers.Registry
 	sigCh := make(chan os.Signal, 1)
 	signal.Notify(sigCh, os.Interrupt, syscall.SIGTERM)
 	go func() {

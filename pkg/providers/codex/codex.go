@@ -21,81 +21,29 @@ import (
 	"github.com/dlnilsson/git-cc-ai/pkg/ui"
 )
 
-type Registry struct {
-	mu          sync.Mutex
-	cmd         *exec.Cmd
-	stopSpinner func()
-	threadID    string
-	interrupted bool
+type threadTracker struct {
+	mu       sync.Mutex
+	threadID string
+}
+
+func (t *threadTracker) set(id string) {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	if t.threadID == "" && strings.TrimSpace(id) != "" {
+		t.threadID = strings.TrimSpace(id)
+	}
+}
+
+func (t *threadTracker) get() string {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	return t.threadID
 }
 
 type codexUsage struct {
 	InputTokens       int
 	CachedInputTokens int
 	OutputTokens      int
-}
-
-func (r *Registry) register(cmd *exec.Cmd, stopSpinner func()) {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	r.cmd = cmd
-	r.stopSpinner = stopSpinner
-	r.interrupted = false
-}
-
-func (r *Registry) wasInterrupted() bool {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	return r.interrupted
-}
-
-func (r *Registry) getThreadID() string {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	return r.threadID
-}
-
-func (r *Registry) setThreadID(id string) {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	if r.threadID == "" && strings.TrimSpace(id) != "" {
-		r.threadID = strings.TrimSpace(id)
-	}
-}
-
-func (r *Registry) unregister() {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	r.cmd = nil
-	r.stopSpinner = nil
-	r.threadID = ""
-}
-
-func (r *Registry) ForwardSignal(sig os.Signal) {
-	r.mu.Lock()
-	cmd := r.cmd
-	if sig == os.Interrupt {
-		r.interrupted = true
-	}
-	r.mu.Unlock()
-	if cmd == nil || cmd.Process == nil {
-		return
-	}
-	if runtime.GOOS != "windows" && (sig == os.Interrupt || sig == syscall.SIGTERM) {
-		_ = syscall.Kill(-cmd.Process.Pid, sig.(syscall.Signal))
-		return
-	}
-	_ = cmd.Process.Signal(sig)
-}
-
-func (r *Registry) StopSpinnerIfSet() {
-	r.mu.Lock()
-	stop := r.stopSpinner
-	r.stopSpinner = nil
-	r.mu.Unlock()
-	if stop != nil {
-		stop()
-	}
 }
 
 func Models() []string {
@@ -114,7 +62,7 @@ var models = []string{
 	"gpt-5.3-codex",
 }
 
-func Generate(reg *Registry, opts providers.Options) (string, error) {
+func Generate(reg *providers.Registry, opts providers.Options) (string, error) {
 	const (
 		codexCmd  = "codex"
 		codexArgs = "exec --json"
@@ -172,7 +120,7 @@ func Generate(reg *Registry, opts providers.Options) (string, error) {
 	}
 	startTime = time.Now()
 	if opts.ShowSpinner {
-		stopSpinner = ui.StartSpinner(ui.RandomSpinnerMessage(), reg)
+		stopSpinner = ui.StartSpinner(ui.RandomSpinnerMessage(), "codex", reg)
 		defer stopSpinner()
 	}
 	stdout, err = cmd.StdoutPipe()
@@ -186,14 +134,15 @@ func Generate(reg *Registry, opts providers.Options) (string, error) {
 	if err = cmd.Start(); err != nil {
 		return "", err
 	}
-	reg.register(cmd, stopSpinner)
-	defer reg.unregister()
+	reg.Register(cmd, stopSpinner)
+	defer reg.Unregister()
 
+	var thread threadTracker
 	go func() {
 		sc := bufio.NewScanner(stderr)
 		for sc.Scan() {
 			if id := parseThreadStartedJSON(sc.Text()); id != "" {
-				reg.setThreadID(id)
+				thread.set(id)
 			}
 		}
 	}()
@@ -205,7 +154,7 @@ func Generate(reg *Registry, opts providers.Options) (string, error) {
 		buffer.WriteString(line)
 		buffer.WriteByte('\n')
 		if id := parseThreadStartedJSON(line); id != "" {
-			reg.setThreadID(id)
+			thread.set(id)
 		}
 		if opts.ShowSpinner {
 			reasoningText = parseReasoningJSON(line)
@@ -223,8 +172,8 @@ func Generate(reg *Registry, opts providers.Options) (string, error) {
 	if err = cmd.Wait(); err != nil {
 		return "", errors.New("codex invocation failed")
 	}
-	if reg.wasInterrupted() {
-		if id := reg.getThreadID(); id != "" {
+	if reg.WasInterrupted() {
+		if id := thread.get(); id != "" {
 			fmt.Fprintln(os.Stderr, id)
 		}
 		return "", errors.New("codex invocation failed")
