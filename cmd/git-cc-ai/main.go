@@ -114,7 +114,7 @@ func main() {
 	if backend == "" {
 		backend = "codex"
 	}
-	cli, ok := backends[backend]
+	b, ok := backends[backend]
 	if !ok {
 		available := make([]string, 0, len(backends))
 		for name := range backends {
@@ -135,19 +135,20 @@ func main() {
 		}
 	}()
 
-	message, err := cli.Generate(&registry, providers.Options{
+	message, err := b.Generate(&registry, providers.Options{
 		SkillPath:   skillPath,
 		ExtraNote:   extraNote,
 		Model:       model,
 		ShowSpinner: !noSpinner,
 	})
 	if err != nil {
+		fmt.Fprintf(os.Stdout, "\n\n\n# something went wrong %s\n", err.Error())
 		fmt.Fprintln(os.Stderr, err.Error())
 		os.Exit(1)
 	}
 	if strings.TrimSpace(message) == "" {
-		fmt.Fprintln(os.Stderr, "No commit message generated.")
-		os.Exit(1)
+		fmt.Print("\n\n# something went wrong\n")
+		return
 	}
 	fmt.Print(strings.TrimSpace(message))
 }
