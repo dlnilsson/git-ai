@@ -9,7 +9,6 @@ if [[ -n "${GIT_AI_BACKEND:-}" ]]; then
   git_ai_cmd=(env "GIT_AI_BACKEND=$GIT_AI_BACKEND" git-cc-ai "$@")
 fi
 
-{ "${git_ai_cmd[@]}" | git commit -F - --edit; } 2> "$tmp"
-ret=$?
+msg=$("${git_ai_cmd[@]}" 2> "$tmp") || { cat "$tmp" >&2; exit 1; }
 cat "$tmp" >&2
-exit $ret
+echo "$msg" | git commit -F - --edit
