@@ -4,6 +4,7 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"os/exec"
 	"os/signal"
 	"sort"
 	"strings"
@@ -63,6 +64,11 @@ Flags:
 	fmt.Fprintln(os.Stderr)
 }
 
+func execInPath(name string) bool {
+	_, err := exec.LookPath(name)
+	return err == nil
+}
+
 func main() {
 	var (
 		mFlag     string
@@ -89,7 +95,15 @@ func main() {
 	}
 	backend := strings.TrimSpace(os.Getenv("GIT_AI_BACKEND"))
 	if backend == "" {
-		backend = "codex"
+		switch {
+		case execInPath("claude"):
+			backend = "claude"
+		case execInPath("codex"):
+			backend = "codex"
+		default:
+			fmt.Fprintln(os.Stderr, "no supported backend found in PATH (install claude or codex)")
+			os.Exit(1)
+		}
 	}
 	b, ok := backends[backend]
 	if !ok {
