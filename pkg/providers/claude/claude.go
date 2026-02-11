@@ -46,7 +46,8 @@ func Generate(reg *providers.Registry, opts providers.Options) (string, error) {
 	args := []string{"-p", prompt,
 		"--output-format=stream-json", "--verbose", "--include-partial-messages",
 		"--no-session-persistence"}
-	if sessionID := readAgentSessionID(); sessionID != "" {
+	sessionID := readAgentSessionID()
+	if sessionID != "" {
 		args = append([]string{"--resume=" + sessionID, "--fork-session"}, args...)
 	}
 	cmd := exec.Command("claude", args...)
@@ -59,6 +60,9 @@ func Generate(reg *providers.Registry, opts providers.Options) (string, error) {
 	if opts.ShowSpinner {
 		stopSpinner = ui.StartSpinner(ui.RandomSpinnerMessage(), "claude", reg)
 		defer stopSpinner()
+		if sessionID != "" {
+			ui.SendSpinnerReasoning("Resuming session " + sessionID)
+		}
 	}
 
 	stdout, err := cmd.StdoutPipe()
