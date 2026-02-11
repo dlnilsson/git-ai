@@ -44,6 +44,24 @@ Specification
 
 const BodyLineWidth = 72
 
+// StripCodeFence removes markdown code fences (```...```) that LLMs
+// sometimes wrap around their output.
+func StripCodeFence(s string) string {
+	if !strings.HasPrefix(s, "```") {
+		return s
+	}
+	// Skip the opening ``` and optional language identifier on the first line.
+	_, after, ok := strings.Cut(s, "\n")
+	if !ok {
+		return s
+	}
+	body := after
+	if idx := strings.LastIndex(body, "```"); idx != -1 {
+		body = body[:idx]
+	}
+	return strings.TrimSpace(body)
+}
+
 func WrapMessage(msg string, width int) string {
 	paragraphs := strings.Split(msg, "\n\n")
 	out := make([]string, 0, len(paragraphs))

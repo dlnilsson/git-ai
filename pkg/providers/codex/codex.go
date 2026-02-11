@@ -188,16 +188,18 @@ func Generate(reg *providers.Registry, opts providers.Options) (string, error) {
 	}
 
 	if parsed := parseCodexJSON(output); strings.TrimSpace(parsed) != "" {
-		return appendUsageComment(commit.WrapMessage(strings.TrimSpace(parsed), commit.BodyLineWidth), usage, time.Since(startTime), opts.Model), nil
+		text := commit.StripCodeFence(strings.TrimSpace(parsed))
+		return appendUsageComment(commit.WrapMessage(text, commit.BodyLineWidth), usage, time.Since(startTime), opts.Model), nil
 	}
 
 	if strings.HasPrefix(output, "{") {
 		if extracted := extractJSONField(output, []string{"output", "stdout", "result", "message"}); strings.TrimSpace(extracted) != "" {
-			return appendUsageComment(commit.WrapMessage(strings.TrimSpace(extracted), commit.BodyLineWidth), usage, time.Since(startTime), opts.Model), nil
+			text := commit.StripCodeFence(strings.TrimSpace(extracted))
+			return appendUsageComment(commit.WrapMessage(text, commit.BodyLineWidth), usage, time.Since(startTime), opts.Model), nil
 		}
 	}
 
-	return appendUsageComment(commit.WrapMessage(output, commit.BodyLineWidth), usage, time.Since(startTime), opts.Model), nil
+	return appendUsageComment(commit.WrapMessage(commit.StripCodeFence(output), commit.BodyLineWidth), usage, time.Since(startTime), opts.Model), nil
 }
 
 func parseReasoningJSON(raw string) string {

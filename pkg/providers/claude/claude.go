@@ -100,7 +100,7 @@ func Generate(reg *providers.Registry, opts providers.Options) (string, error) {
 		return "", errors.New("claude invocation failed")
 	}
 
-	text := stripCodeFence(strings.TrimSpace(result.Result))
+	text := commit.StripCodeFence(strings.TrimSpace(result.Result))
 	if text == "" {
 		return "", errors.New("claude returned empty response")
 	}
@@ -186,24 +186,6 @@ func parseTextDelta(raw string) string {
 		return ""
 	}
 	return ev.Event.Delta.Text
-}
-
-// stripCodeFence removes markdown code fences (```...```) that Claude
-// sometimes wraps around its output.
-func stripCodeFence(s string) string {
-	if !strings.HasPrefix(s, "```") {
-		return s
-	}
-	// Skip the opening ``` and optional language identifier on the first line.
-	_, after, ok := strings.Cut(s, "\n")
-	if !ok {
-		return s
-	}
-	body := after
-	if idx := strings.LastIndex(body, "```"); idx != -1 {
-		body = body[:idx]
-	}
-	return strings.TrimSpace(body)
 }
 
 // parseResultEvent parses the final "result" event from stream-json output.
