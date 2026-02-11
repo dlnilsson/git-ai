@@ -2,13 +2,12 @@
 
 [![asciicast](https://asciinema.org/a/uHPdXi9wsZ23xQ42.svg)](https://asciinema.org/a/uHPdXi9wsZ23xQ42)
 
-Generates conventional commit messages from your staged changes using Codex or Claude. Use the generated message with `git commit` (e.g. via the `git-ai` script) and optionally edit it in your editor before committing.
+Generates conventional commit messages from your staged changes using Claude or Codex. Use the generated message with `git commit` (e.g. via the `git-ai` script) and optionally edit it in your editor before committing.
 
 ## Requirements
 
 - **Go** — to build the binary
-- **Codex** — installed and on your `PATH` (default backend)
-- **Claude** — installed and on your `PATH` (optional, for the `claude` backend)
+- **Claude** or **Codex** — installed and on your `PATH`
 
 ## Install
 
@@ -20,23 +19,23 @@ This installs the Go binary and [scripts/git-ai](scripts/git-ai) into `$(BINDIR)
 
 ## Backends
 
-Set `GIT_AI_BACKEND` to choose which provider generates the commit message:
+The backend is auto-detected from your `PATH` (Claude preferred). Override with `GIT_AI_BACKEND`:
 
-| Value   | Provider | Default |
-|---------|----------|---------|
-| `codex` | OpenAI Codex CLI | yes |
-| `claude` | Anthropic Claude CLI | no |
+| Value    | Provider             |
+|----------|----------------------|
+| `claude` | Anthropic Claude CLI |
+| `codex`  | OpenAI Codex CLI     |
 
 ```bash
-# Use the default (codex)
+# Auto-detect (claude preferred, falls back to codex)
 git ai
 
-# Use Claude
-GIT_AI_BACKEND=claude git ai
+# Force a specific backend
+GIT_AI_BACKEND=codex git ai
 ```
 
 ## Get started
 
 1. Stage your changes: `git add ...`
 2. Run: `git ai` (or `git-ai` if not using a git alias)
-3. The selected backend drafts a conventional commit message and opens your editor so you can confirm or edit, then commit.
+3. The backend drafts a conventional commit message and opens your editor so you can confirm or edit, then commit.

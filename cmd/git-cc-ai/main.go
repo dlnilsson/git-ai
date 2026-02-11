@@ -39,23 +39,28 @@ func injectBareM() {
 }
 
 func printHelp() {
-	const help = `git-cc-ai — generate conventional commit messages from staged changes using Codex.
+	const help = `git-cc-ai — generate conventional commit messages from staged changes.
 
-The tool runs Codex on your staged diff and prints a conventional commit message
-to stdout. Use it with git commit (e.g. via the git-ai script) and optionally
-edit the message in your editor before committing.
+The tool runs an AI backend on your staged diff and prints a conventional commit
+message to stdout. Use it with git commit (e.g. via the git-ai script) and
+optionally edit the message in your editor before committing.
 
 Requirements:
-  Codex must be installed and on your PATH (the binary invokes "codex" by default).
+  Claude or Codex must be installed and on your PATH.
+  The backend is auto-detected (claude preferred) or set via GIT_AI_BACKEND.
+
+Backends:
+  claude   Anthropic Claude CLI (preferred when found in PATH)
+  codex    OpenAI Codex CLI
 
 Environment:
-  GIT_AI_BACKEND: backend provider (default: codex).
+  GIT_AI_BACKEND: backend provider (auto-detected from PATH if unset).
 
 Get started:
   1. Stage your changes: git add ...
   2. Run: git ai (or git-cc-ai if not using a git alias)
-  3. Codex drafts a conventional commit message and opens your editor so you can
-     confirm or edit, then commit.
+  3. The backend drafts a conventional commit message and opens your editor so
+     you can confirm or edit, then commit.
 
 Flags:
 `
@@ -80,7 +85,7 @@ func main() {
 
 	injectBareM()
 	flag.StringVar(&skillPath, "skill-path", "", "path to SKILL.md (optional, used for prompt)")
-	flag.BoolVar(&noSpinner, "no-spinner", false, "disable spinner while codex runs")
+	flag.BoolVar(&noSpinner, "no-spinner", false, "disable spinner while the backend runs")
 	flag.StringVar(&model, "model", "", "model name (overrides -m)")
 	flag.StringVar(&mFlag, "m", "", "model name, or no value for interactive selection")
 	flag.Usage = printHelp
