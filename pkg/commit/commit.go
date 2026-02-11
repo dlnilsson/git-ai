@@ -115,13 +115,13 @@ func WrapMessage(msg string, width int) string {
 		}
 	}
 	result := strings.Join(out, "\n")
-	firstBreak := strings.Index(result, "\n")
-	if firstBreak == -1 {
+	before, after, ok := strings.Cut(result, "\n")
+	if !ok {
 		return result
 	}
-	rest := strings.TrimLeft(result[firstBreak+1:], "\n")
+	rest := strings.TrimLeft(after, "\n")
 	if strings.TrimSpace(rest) == "" {
-		return result[:firstBreak]
+		return before
 	}
-	return result[:firstBreak] + "\n\n" + rest
+	return before + "\n\n" + rest
 }

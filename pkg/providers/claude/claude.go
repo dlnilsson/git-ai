@@ -194,11 +194,11 @@ func stripCodeFence(s string) string {
 		return s
 	}
 	// Skip the opening ``` and optional language identifier on the first line.
-	first := strings.IndexByte(s, '\n')
-	if first == -1 {
+	_, after, ok := strings.Cut(s, "\n")
+	if !ok {
 		return s
 	}
-	body := s[first+1:]
+	body := after
 	if idx := strings.LastIndex(body, "```"); idx != -1 {
 		body = body[:idx]
 	}

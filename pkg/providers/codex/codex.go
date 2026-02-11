@@ -378,13 +378,13 @@ func toInt(value any) int {
 func extractJSONField(raw string, keys []string) string {
 	for _, key := range keys {
 		var (
-			needle = `"` + key + `":`
-			idx    = strings.Index(raw, needle)
+			needle       = `"` + key + `":`
+			_, after, ok = strings.Cut(raw, needle)
 		)
-		if idx == -1 {
+		if !ok {
 			continue
 		}
-		rest := raw[idx+len(needle):]
+		rest := after
 		rest = strings.TrimLeft(rest, " \n\r\t")
 		if strings.HasPrefix(rest, "\"") {
 			rest = rest[1:]
