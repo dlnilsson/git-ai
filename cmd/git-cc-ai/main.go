@@ -159,8 +159,8 @@ func main() {
 		ShowSpinner: !noSpinner,
 	})
 	if err != nil {
-		fmt.Fprintf(os.Stdout, "\n\n\n# something went wrong %s\n", err.Error())
-		fmt.Fprintln(os.Stderr, err.Error())
+		fmt.Fprintf(os.Stdout, "\n\n\n# something went wrong %s\n", err.Error())  //nolint:errcheck
+		fmt.Fprintln(os.Stderr, err.Error())                                      //nolint:errcheck
 		os.Exit(1)
 	}
 	if strings.TrimSpace(message) == "" {
