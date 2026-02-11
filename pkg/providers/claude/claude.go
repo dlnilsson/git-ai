@@ -44,7 +44,8 @@ func Generate(reg *providers.Registry, opts providers.Options) (string, error) {
 	})
 
 	cmd := exec.Command("claude", "-p", prompt,
-		"--output-format=stream-json", "--verbose", "--include-partial-messages")
+		"--output-format=stream-json", "--verbose", "--include-partial-messages",
+		"--no-session-persistence")
 	if runtime.GOOS != "windows" {
 		cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
 	}
