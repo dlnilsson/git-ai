@@ -170,7 +170,7 @@ func Generate(reg *providers.Registry, opts providers.Options) (string, error) {
 		return "", err
 	}
 	if err = cmd.Wait(); err != nil {
-		return "", errors.New("codex invocation failed")
+		return "", fmt.Errorf("codex invocation failed: %w", err)
 	}
 	if reg.WasInterrupted() {
 		if id := thread.get(); id != "" {
@@ -182,9 +182,6 @@ func Generate(reg *providers.Registry, opts providers.Options) (string, error) {
 	output = strings.TrimSpace(buffer.String())
 	if output == "" {
 		return "", nil
-	}
-	if codexOutputIndicatesFailure(output) {
-		return "", errors.New("codex invocation failed")
 	}
 
 	if parsed := parseCodexJSON(output); strings.TrimSpace(parsed) != "" {
@@ -263,10 +260,6 @@ func parseCodexJSON(raw string) string {
 		}
 	}
 	return last
-}
-
-func codexOutputIndicatesFailure(output string) bool {
-	return strings.Contains(output, "failed:")
 }
 
 func parseThreadStartedJSON(raw string) string {
