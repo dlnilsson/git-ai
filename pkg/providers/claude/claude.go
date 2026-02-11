@@ -43,9 +43,13 @@ func Generate(reg *providers.Registry, opts providers.Options) (string, error) {
 		ExtraNote: opts.ExtraNote,
 	})
 
-	cmd := exec.Command("claude", "-p", prompt,
+	args := []string{"-p", prompt,
 		"--output-format=stream-json", "--verbose", "--include-partial-messages",
-		"--no-session-persistence")
+		"--no-session-persistence"}
+	if sessionID := readAgentSessionID(); sessionID != "" {
+		args = append([]string{"--resume=" + sessionID, "--fork-session"}, args...)
+	}
+	cmd := exec.Command("claude", args...)
 	if runtime.GOOS != "windows" {
 		cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
 	}
@@ -107,6 +111,23 @@ func Generate(reg *providers.Registry, opts providers.Options) (string, error) {
 
 	msg := commit.WrapMessage(text, commit.BodyLineWidth)
 	return appendUsageComment(msg, result, time.Since(startTime)), nil
+}
+
+// readAgentSessionID reads the .agentrc file and returns the
+// CLAUDE_SESSION_ID value if present, or empty string otherwise.
+func readAgentSessionID() string {
+	data, err := os.ReadFile(".agentrc")
+	if err != nil {
+		return ""
+	}
+	for _, line := range strings.Split(string(data), "\n") {
+		line = strings.TrimSpace(line)
+		after, ok := strings.CutPrefix(line, "export CLAUDE_SESSION_ID=")
+		if ok {
+			return strings.TrimSpace(after)
+		}
+	}
+	return ""
 }
 
 // parseStreamReasoning extracts displayable reasoning text from assistant
