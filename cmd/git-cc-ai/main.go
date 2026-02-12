@@ -10,6 +10,7 @@ import (
 	"strings"
 	"syscall"
 
+	"github.com/dlnilsson/git-cc-ai/pkg/agentrc"
 	"github.com/dlnilsson/git-cc-ai/pkg/providers"
 	"github.com/dlnilsson/git-cc-ai/pkg/providers/claude"
 	"github.com/dlnilsson/git-cc-ai/pkg/providers/codex"
@@ -94,11 +95,16 @@ func main() {
 		extraNote = strings.Join(flag.Args(), " ")
 	}
 
+	rc := agentrc.Load(".agentrc")
+
 	backends := map[string]providers.Backend{
 		"codex":  codex.Backend{},
 		"claude": claude.Backend{},
 	}
 	backend := strings.TrimSpace(os.Getenv("GIT_AI_BACKEND"))
+	if backend == "" {
+		backend = rc.Backend
+	}
 	if backend == "" {
 		switch {
 		case execInPath("claude"):
@@ -161,6 +167,7 @@ func main() {
 		SkillPath:   skillPath,
 		ExtraNote:   extraNote,
 		Model:       model,
+		SessionID:   rc.SessionID,
 		ShowSpinner: !noSpinner,
 	})
 	if err != nil {

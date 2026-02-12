@@ -46,9 +46,8 @@ func Generate(reg *providers.Registry, opts providers.Options) (string, error) {
 	args := []string{"-p", prompt,
 		"--output-format=stream-json", "--verbose", "--include-partial-messages",
 		"--no-session-persistence"}
-	sessionID := readAgentSessionID()
-	if sessionID != "" {
-		args = append([]string{"--resume=" + sessionID, "--fork-session"}, args...)
+	if opts.SessionID != "" {
+		args = append([]string{"--resume=" + opts.SessionID, "--fork-session"}, args...)
 	}
 	cmd := exec.Command("claude", args...)
 	if runtime.GOOS != "windows" {
@@ -60,8 +59,8 @@ func Generate(reg *providers.Registry, opts providers.Options) (string, error) {
 	if opts.ShowSpinner {
 		stopSpinner = ui.StartSpinner(ui.RandomSpinnerMessage(), "claude", reg)
 		defer stopSpinner()
-		if sessionID != "" {
-			ui.SendSpinnerReasoning("Resuming session " + sessionID)
+		if opts.SessionID != "" {
+			ui.SendSpinnerReasoning("Resuming session " + opts.SessionID)
 		}
 	}
 
@@ -115,23 +114,6 @@ func Generate(reg *providers.Registry, opts providers.Options) (string, error) {
 
 	msg := commit.WrapMessage(text, commit.BodyLineWidth)
 	return appendUsageComment(msg, result, time.Since(startTime)), nil
-}
-
-// readAgentSessionID reads the .agentrc file and returns the
-// CLAUDE_SESSION_ID value if present, or empty string otherwise.
-func readAgentSessionID() string {
-	data, err := os.ReadFile(".agentrc")
-	if err != nil {
-		return ""
-	}
-	for _, line := range strings.Split(string(data), "\n") {
-		line = strings.TrimSpace(line)
-		after, ok := strings.CutPrefix(line, "export CLAUDE_SESSION_ID=")
-		if ok {
-			return strings.TrimSpace(after)
-		}
-	}
-	return ""
 }
 
 // parseStreamReasoning extracts displayable reasoning text from assistant

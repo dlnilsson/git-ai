@@ -4,6 +4,7 @@ type Options struct {
 	SkillPath   string
 	ExtraNote   string
 	Model       string
+	SessionID   string
 	ShowSpinner bool
 }
 
