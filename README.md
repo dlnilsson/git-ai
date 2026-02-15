@@ -11,11 +11,21 @@ Generates conventional commit messages from your staged changes using Claude or 
 
 ## Install
 
+macOS/Linux:
+
 ```bash
 make install
 ```
 
 This installs the Go binary and [scripts/git-ai](scripts/git-ai) into `$(BINDIR)` (default `~/.local/bin`). Ensure that directory is on your `PATH`.
+
+Windows (PowerShell):
+
+```powershell
+./scripts/install-windows.ps1
+```
+
+This installs the Go binary plus `git-ai.cmd`/`git-ai.ps1` into `$HOME\.local\bin` by default. Ensure that directory is on your `PATH`.
 
 ## Backends
 

@@ -7,9 +7,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
-	"runtime"
 	"strings"
-	"syscall"
 	"time"
 
 	"github.com/dlnilsson/git-cc-ai/pkg/commit"
@@ -50,9 +48,7 @@ func Generate(reg *providers.Registry, opts providers.Options) (string, error) {
 		args = append([]string{"--resume=" + opts.SessionID, "--fork-session"}, args...)
 	}
 	cmd := exec.Command("claude", args...)
-	if runtime.GOOS != "windows" {
-		cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
-	}
+	setProcessGroup(cmd)
 
 	startTime := time.Now()
 	var stopSpinner func()

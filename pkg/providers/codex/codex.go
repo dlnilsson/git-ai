@@ -8,11 +8,9 @@ import (
 	"io"
 	"os"
 	"os/exec"
-	"runtime"
 	"slices"
 	"strings"
 	"sync"
-	"syscall"
 	"time"
 
 	"github.com/dlnilsson/git-cc-ai/pkg/commit"
@@ -115,9 +113,7 @@ func Generate(reg *providers.Registry, opts providers.Options) (string, error) {
 	}
 	cmd = exec.Command(codexCmd, args...)
 	cmd.Stdin = strings.NewReader(prompt)
-	if runtime.GOOS != "windows" {
-		cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
-	}
+	setProcessGroup(cmd)
 	startTime = time.Now()
 	if opts.ShowSpinner {
 		stopSpinner = ui.StartSpinner(ui.RandomSpinnerMessage(), "codex", reg)

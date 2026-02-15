@@ -3,9 +3,7 @@ package providers
 import (
 	"os"
 	"os/exec"
-	"runtime"
 	"sync"
-	"syscall"
 )
 
 type Registry struct {
@@ -46,8 +44,7 @@ func (r *Registry) ForwardSignal(sig os.Signal) {
 	if cmd == nil || cmd.Process == nil {
 		return
 	}
-	if runtime.GOOS != "windows" && (sig == os.Interrupt || sig == syscall.SIGTERM) {
-		_ = syscall.Kill(-cmd.Process.Pid, sig.(syscall.Signal))
+	if forwardToProcessGroup(cmd, sig) {
 		return
 	}
 	_ = cmd.Process.Signal(sig)
