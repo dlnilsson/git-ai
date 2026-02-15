@@ -27,6 +27,24 @@ Windows (PowerShell):
 
 This installs the Go binary plus `git-ai.cmd`/`git-ai.ps1` into `$HOME\.local\bin` by default. Ensure that directory is on your `PATH`.
 
+Configure a Git alias on Windows so `git ai` works:
+
+```powershell
+git config --global alias.ai "!git-ai"
+```
+
+Verify:
+
+```powershell
+git config --global --get alias.ai
+```
+
+Expected output:
+
+```text
+!git-ai
+```
+
 ## Backends
 
 The backend is auto-detected from your `PATH` (Claude preferred). Override with `GIT_AI_BACKEND`:
@@ -42,6 +60,12 @@ git ai
 
 # Force a specific backend
 GIT_AI_BACKEND=codex git ai
+```
+
+PowerShell backend override:
+
+```powershell
+$env:GIT_AI_BACKEND='codex'; git ai
 ```
 
 ## Get started
