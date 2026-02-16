@@ -63,9 +63,11 @@ var spinnerStyles = []spinner.Spinner{
 	spinner.Monkey,
 }
 
-var reasoningStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("241")).Render
-var markdownRenderer *glamour.TermRenderer
-var activeSpinner *spinnerHandle
+var (
+	reasoningStyle   = lipgloss.NewStyle().Foreground(lipgloss.Color("241")).Render
+	markdownRenderer *glamour.TermRenderer
+	activeSpinner    *spinnerHandle
+)
 
 var (
 	terminalOutput     io.Writer

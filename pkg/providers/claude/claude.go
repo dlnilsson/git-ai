@@ -41,9 +41,11 @@ func Generate(reg *providers.Registry, opts providers.Options) (string, error) {
 		ExtraNote: opts.ExtraNote,
 	})
 
-	args := []string{"-p", prompt,
+	args := []string{
+		"-p", prompt,
 		"--output-format=stream-json", "--verbose", "--include-partial-messages",
-		"--no-session-persistence"}
+		"--no-session-persistence",
+	}
 	if opts.SessionID != "" {
 		args = append([]string{"--resume=" + opts.SessionID, "--fork-session"}, args...)
 	}

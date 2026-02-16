@@ -17,8 +17,10 @@ import (
 	"github.com/dlnilsson/git-cc-ai/pkg/ui"
 )
 
-const menuSentinel = "menu"
-const errInvalidModelFmt = "invalid model %q (use -m for interactive pick, or one of: %s)\n"
+const (
+	menuSentinel       = "menu"
+	errInvalidModelFmt = "invalid model %q (use -m for interactive pick, or one of: %s)\n"
+)
 
 func injectBareM() {
 	args := os.Args
@@ -171,8 +173,8 @@ func main() {
 		ShowSpinner: !noSpinner,
 	})
 	if err != nil {
-		fmt.Fprintf(os.Stdout, "\n\n\n# something went wrong %s\n", err.Error())  //nolint:errcheck
-		fmt.Fprintln(os.Stderr, err.Error())                                      //nolint:errcheck
+		fmt.Fprintf(os.Stdout, "\n\n\n# something went wrong %s\n", err.Error()) //nolint:errcheck
+		fmt.Fprintln(os.Stderr, err.Error())                                     //nolint:errcheck
 		os.Exit(1)
 	}
 	if strings.TrimSpace(message) == "" {
