@@ -26,6 +26,7 @@ func Generate(reg *providers.Registry, opts providers.Options) (string, error) {
 	}
 
 	skillText := commit.ConventionalSpec
+	skillText = skillText + "\n\n" + "Dont sign commit messages with claude code!"
 	if opts.SkillPath != "" {
 		if data, readErr := os.ReadFile(opts.SkillPath); readErr == nil {
 			trimmed := strings.TrimSpace(string(data))
