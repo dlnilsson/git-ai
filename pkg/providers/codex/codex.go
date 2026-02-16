@@ -59,6 +59,7 @@ var models = []string{
 	"gpt-5.2-codex",
 	"gpt-5.3-codex",
 	"gpt-5.3-codex-spark",
+	"gpt-5-codex-mini",
 }
 
 func Generate(reg *providers.Registry, opts providers.Options) (string, error) {
@@ -72,6 +73,7 @@ func Generate(reg *providers.Registry, opts providers.Options) (string, error) {
 		cmd           *exec.Cmd
 		diff          string
 		err           error
+		lastError     string
 		output        string
 		reasoningText string
 		scanner       *bufio.Scanner
@@ -117,7 +119,11 @@ func Generate(reg *providers.Registry, opts providers.Options) (string, error) {
 	setProcessGroup(cmd)
 	startTime = time.Now()
 	if opts.ShowSpinner {
-		stopSpinner = ui.StartSpinner(ui.RandomSpinnerMessage(), "codex", reg)
+		backendLabel := "codex"
+		if strings.TrimSpace(opts.Model) != "" {
+			backendLabel += " +" + opts.Model
+		}
+		stopSpinner = ui.StartSpinner(ui.RandomSpinnerMessage(), backendLabel, reg)
 		defer stopSpinner()
 	}
 	stdout, err = cmd.StdoutPipe()
@@ -134,11 +140,17 @@ func Generate(reg *providers.Registry, opts providers.Options) (string, error) {
 	reg.Register(cmd, stopSpinner)
 	defer reg.Unregister()
 
-	var thread threadTracker
+	var (
+		thread    threadTracker
+		stderrBuf strings.Builder
+	)
 	go func() {
 		sc := bufio.NewScanner(stderr)
 		for sc.Scan() {
-			if id := parseThreadStartedJSON(sc.Text()); id != "" {
+			line := sc.Text()
+			stderrBuf.WriteString(line)
+			stderrBuf.WriteByte('\n')
+			if id := parseThreadStartedJSON(line); id != "" {
 				thread.set(id)
 			}
 		}
@@ -162,11 +174,20 @@ func Generate(reg *providers.Registry, opts providers.Options) (string, error) {
 		if updated, ok := parseUsageJSON(line); ok {
 			usage = updated
 		}
+		if errMsg := parseErrorJSON(line); errMsg != "" {
+			lastError = errMsg
+		}
 	}
 	if err = scanner.Err(); err != nil {
 		return "", err
 	}
 	if err = cmd.Wait(); err != nil {
+		if lastError != "" {
+			return "", fmt.Errorf("codex invocation failed: %s", lastError)
+		}
+		if errText := strings.TrimSpace(stderrBuf.String()); errText != "" {
+			return "", fmt.Errorf("codex invocation failed: %w\n%s", err, errText)
+		}
 		return "", fmt.Errorf("codex invocation failed: %w", err)
 	}
 	if reg.WasInterrupted() {
@@ -194,6 +215,27 @@ func Generate(reg *providers.Registry, opts providers.Options) (string, error) {
 	}
 
 	return appendUsageComment(commit.WrapMessage(commit.StripCodeFence(output), commit.BodyLineWidth), usage, time.Since(startTime), opts.Model), nil
+}
+
+func parseErrorJSON(raw string) string {
+	line := strings.TrimSpace(raw)
+	if line == "" {
+		return ""
+	}
+	var msg map[string]any
+	if err := json.Unmarshal([]byte(line), &msg); err != nil {
+		return ""
+	}
+	if t, ok := msg["type"].(string); !ok || t != "error" {
+		return ""
+	}
+	text, _ := msg["message"].(string)
+	// The message may itself be JSON with a "detail" field.
+	var detail struct{ Detail string }
+	if json.Unmarshal([]byte(text), &detail) == nil && detail.Detail != "" {
+		return detail.Detail
+	}
+	return text
 }
 
 func parseReasoningJSON(raw string) string {
