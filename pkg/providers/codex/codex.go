@@ -58,6 +58,7 @@ var models = []string{
 	"gpt-5.1-codex-mini",
 	"gpt-5.2-codex",
 	"gpt-5.3-codex",
+	"gpt-5.3-codex-spark",
 }
 
 func Generate(reg *providers.Registry, opts providers.Options) (string, error) {
