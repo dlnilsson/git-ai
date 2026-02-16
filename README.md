@@ -50,7 +50,7 @@ Expected output:
 The backend is auto-detected from your `PATH` (Claude preferred). Override with `GIT_AI_BACKEND`:
 
 | Value    | Provider             |
-|----------|----------------------|
+| -------- | -------------------- |
 | `claude` | Anthropic Claude CLI |
 | `codex`  | OpenAI Codex CLI     |
 
