@@ -7,9 +7,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
-	"runtime"
 	"strings"
-	"syscall"
 	"time"
 
 	"github.com/dlnilsson/git-cc-ai/pkg/commit"
@@ -28,6 +26,7 @@ func Generate(reg *providers.Registry, opts providers.Options) (string, error) {
 	}
 
 	skillText := commit.ConventionalSpec
+	skillText = skillText + "\n\n" + "Dont sign commit messages with claude code!"
 	if opts.SkillPath != "" {
 		if data, readErr := os.ReadFile(opts.SkillPath); readErr == nil {
 			trimmed := strings.TrimSpace(string(data))
@@ -43,16 +42,16 @@ func Generate(reg *providers.Registry, opts providers.Options) (string, error) {
 		ExtraNote: opts.ExtraNote,
 	})
 
-	args := []string{"-p", prompt,
+	args := []string{
+		"-p", prompt,
 		"--output-format=stream-json", "--verbose", "--include-partial-messages",
-		"--no-session-persistence"}
+		"--no-session-persistence",
+	}
 	if opts.SessionID != "" {
 		args = append([]string{"--resume=" + opts.SessionID, "--fork-session"}, args...)
 	}
 	cmd := exec.Command("claude", args...)
-	if runtime.GOOS != "windows" {
-		cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
-	}
+	setProcessGroup(cmd)
 
 	startTime := time.Now()
 	var stopSpinner func()

@@ -11,11 +11,39 @@ Generates conventional commit messages from your staged changes using Claude or 
 
 ## Install
 
+macOS/Linux:
+
 ```bash
 make install
 ```
 
 This installs the Go binary and [scripts/git-ai](scripts/git-ai) into `$(BINDIR)` (default `~/.local/bin`). Ensure that directory is on your `PATH`.
+
+Windows (PowerShell):
+
+```powershell
+./scripts/install-windows.ps1
+```
+
+This installs the Go binary plus `git-ai.cmd`/`git-ai.ps1` into `$HOME\.local\bin` by default. Ensure that directory is on your `PATH`.
+
+Configure a Git alias on Windows so `git ai` works:
+
+```powershell
+git config --global alias.ai "!git-ai"
+```
+
+Verify:
+
+```powershell
+git config --global --get alias.ai
+```
+
+Expected output:
+
+```text
+!git-ai
+```
 
 ## Backends
 
@@ -32,6 +60,12 @@ git ai
 
 # Force a specific backend
 GIT_AI_BACKEND=codex git ai
+```
+
+PowerShell backend override:
+
+```powershell
+$env:GIT_AI_BACKEND='codex'; git ai
 ```
 
 ## Get started

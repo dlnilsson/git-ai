@@ -9,6 +9,7 @@ import (
 type Config struct {
 	SessionID string
 	Backend   string
+	Model     string
 }
 
 // Load reads a .agentrc file and returns its parsed configuration.
@@ -26,6 +27,9 @@ func Load(path string) Config {
 		}
 		if after, ok := strings.CutPrefix(line, "export GIT_AI_BACKEND="); ok {
 			cfg.Backend = strings.TrimSpace(after)
+		}
+		if after, ok := strings.CutPrefix(line, "export GIT_AI_MODEL="); ok {
+			cfg.Model = strings.TrimSpace(after)
 		}
 	}
 	return cfg

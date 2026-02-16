@@ -17,8 +17,10 @@ import (
 	"github.com/dlnilsson/git-cc-ai/pkg/ui"
 )
 
-const menuSentinel = "menu"
-const errInvalidModelFmt = "invalid model %q (use -m for interactive pick, or one of: %s)\n"
+const (
+	menuSentinel       = "menu"
+	errInvalidModelFmt = "invalid model %q (use -m for interactive pick, or one of: %s)\n"
+)
 
 func injectBareM() {
 	args := os.Args
@@ -56,6 +58,7 @@ Backends:
 
 Environment:
   GIT_AI_BACKEND: backend provider (auto-detected from PATH if unset).
+  GIT_AI_MODEL:   model name (overridden by -m / --model flags).
 
 Get started:
   1. Stage your changes: git add ...
@@ -127,6 +130,13 @@ func main() {
 		os.Exit(1)
 	}
 
+	if envModel := strings.TrimSpace(os.Getenv("GIT_AI_MODEL")); envModel != "" && strings.TrimSpace(model) == "" && strings.TrimSpace(mFlag) == "" {
+		model = envModel
+	}
+	if rc.Model != "" && strings.TrimSpace(model) == "" && strings.TrimSpace(mFlag) == "" {
+		model = rc.Model
+	}
+
 	if backend == "codex" {
 		models := codex.Models()
 		switch {
@@ -171,8 +181,8 @@ func main() {
 		ShowSpinner: !noSpinner,
 	})
 	if err != nil {
-		fmt.Fprintf(os.Stdout, "\n\n\n# something went wrong %s\n", err.Error())  //nolint:errcheck
-		fmt.Fprintln(os.Stderr, err.Error())                                      //nolint:errcheck
+		fmt.Fprintf(os.Stdout, "\n\n\n# something went wrong %s\n", err.Error()) //nolint:errcheck
+		fmt.Fprintln(os.Stderr, err.Error())                                     //nolint:errcheck
 		os.Exit(1)
 	}
 	if strings.TrimSpace(message) == "" {
