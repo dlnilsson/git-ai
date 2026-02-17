@@ -46,6 +46,7 @@ func Generate(reg *providers.Registry, opts providers.Options) (string, error) {
 		"-p", prompt,
 		"--output-format=stream-json", "--verbose", "--include-partial-messages",
 		"--no-session-persistence",
+		"--max-budget-usd", "1",
 	}
 	if opts.SessionID != "" {
 		args = append([]string{"--resume=" + opts.SessionID, "--fork-session"}, args...)
@@ -82,11 +83,13 @@ func Generate(reg *providers.Registry, opts providers.Options) (string, error) {
 	for scanner.Scan() {
 		line := scanner.Text()
 
-		if opts.ShowSpinner {
-			if delta := parseTextDelta(line); delta != "" {
-				deltaAccum.WriteString(delta)
+		if delta := parseTextDelta(line); delta != "" {
+			deltaAccum.WriteString(delta)
+			if opts.ShowSpinner {
 				ui.SendSpinnerReasoning(strings.TrimSpace(deltaAccum.String()))
-			} else if text := parseStreamReasoning(line); text != "" {
+			}
+		} else if opts.ShowSpinner {
+			if text := parseStreamReasoning(line); text != "" {
 				deltaAccum.Reset()
 				ui.SendSpinnerReasoning(text)
 			}
@@ -106,8 +109,19 @@ func Generate(reg *providers.Registry, opts providers.Options) (string, error) {
 		return "", errors.New("claude invocation failed")
 	}
 
-	text := commit.StripCodeFence(strings.TrimSpace(result.Result))
+	// Use result.Result when available; fall back to accumulated text deltas
+	// (e.g. when max-budget-usd is hit, result.Result is empty but deltas
+	// contain the full response).
+	responseText := result.Result
+	if responseText == "" {
+		responseText = deltaAccum.String()
+	}
+
+	text := commit.StripCodeFence(strings.TrimSpace(responseText))
 	if text == "" {
+		if result.Subtype != "" {
+			return "", fmt.Errorf("claude: %s", result.Subtype)
+		}
 		return "", errors.New("claude returned empty response")
 	}
 
@@ -215,6 +229,7 @@ func parseResultEvent(raw string) (claudeResult, bool) {
 
 type claudeResult struct {
 	Type         string                      `json:"type"`
+	Subtype      string                      `json:"subtype"`
 	Result       string                      `json:"result"`
 	TotalCostUSD float64                     `json:"total_cost_usd"`
 	DurationMS   int                         `json:"duration_ms"`
