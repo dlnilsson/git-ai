@@ -40,6 +40,8 @@ Specification
 14. If included in the type/scope prefix, breaking changes MUST be indicated by a ! immediately before the :. If ! is used, BREAKING CHANGE: MAY be omitted from the footer, and the commit description SHALL be used to describe the breaking change.
 15. Types other than feat and fix MAY be used in your commit messages.
 16. The units of information that make up Conventional Commits MUST NOT be treated as case sensitive by implementors, with the exception of BREAKING CHANGE which MUST be uppercase. BREAKING-CHANGE MUST be synonymous with BREAKING CHANGE, when used as a token in a footer.
+
+Only return raw commit message, no follow up questions. no markdown fences.
 `
 
 const BodyLineWidth = 72
