@@ -18,11 +18,11 @@ import (
 )
 
 func Generate(reg *providers.Registry, opts providers.Options) (string, error) {
-	diff, err := git.DiffStaged()
+	chunks, err := git.DiffStagedChunks()
 	if err != nil {
 		return "", err
 	}
-	if strings.TrimSpace(diff) == "" {
+	if len(chunks) == 0 {
 		return "", errors.New("no staged diff content found")
 	}
 
@@ -40,16 +40,12 @@ func Generate(reg *providers.Registry, opts providers.Options) (string, error) {
 		}
 	}
 
-	promptOpts := commit.PromptOptions{
+	systemPrompt := commit.BuildSystemPrompt(commit.PromptOptions{
 		SkillText: skillText,
-		Diff:      diff,
-		ExtraNote: opts.ExtraNote,
 		NoCC:      opts.NoCC,
-	}
-	systemPrompt := commit.BuildSystemPrompt(promptOpts)
-	userMessage := commit.BuildUserMessage(promptOpts)
+	})
 
-	stdinPayload, err := buildStreamInput(userMessage)
+	stdinPayload, err := buildChunkedStreamInput(chunks, opts.ExtraNote)
 	if err != nil {
 		return "", fmt.Errorf("failed to encode stream-json input: %w", err)
 	}
@@ -86,7 +82,7 @@ func Generate(reg *providers.Registry, opts providers.Options) (string, error) {
 	cmd.Stderr = os.Stderr
 
 	if err = cmd.Start(); err != nil {
-		return "", fmt.Errorf("%w\n# %s", err, cmdString(cmd, userMessage))
+		return "", fmt.Errorf("%w\n# %s", err, cmdString(cmd, fmt.Sprintf("%d dir chunk(s)", len(chunks))))
 	}
 	reg.Register(cmd, stopSpinner)
 	defer reg.Unregister()
@@ -125,7 +121,7 @@ func Generate(reg *providers.Registry, opts providers.Options) (string, error) {
 		if reg.WasInterrupted() {
 			return "", errors.New("claude invocation interrupted")
 		}
-		return "", fmt.Errorf("claude invocation failed\n# %s", cmdString(cmd, userMessage))
+		return "", fmt.Errorf("claude invocation failed\n# %s", cmdString(cmd, fmt.Sprintf("%d dir chunk(s)", len(chunks))))
 	}
 
 	responseText := result.Result
@@ -304,6 +300,34 @@ type claudeModelUsage struct {
 	CacheCreationInputTokens int     `json:"cacheCreationInputTokens"`
 	WebSearchRequests        int     `json:"webSearchRequests"`
 	CostUSD                  float64 `json:"costUSD"`
+}
+
+// buildChunkedStreamInput encodes each DiffChunk as a separate NDJSON user
+// message followed by a final "generate commit message" message. Claude
+// responds after each message; we keep only the last result event.
+func buildChunkedStreamInput(chunks []git.DiffChunk, extraNote string) ([]byte, error) {
+	var buf bytes.Buffer
+	for _, chunk := range chunks {
+		text := "Staged diff for " + chunk.Dir + ":\n" + chunk.Diff
+		data, err := buildStreamInput(text)
+		if err != nil {
+			return nil, err
+		}
+		buf.Write(data)
+		buf.WriteByte('\n')
+	}
+	// Final message triggers the actual commit-message generation.
+	final := "Generate the commit message based on all the staged diffs above."
+	if strings.TrimSpace(extraNote) != "" {
+		final += "\n\nExtra context:\n" + strings.TrimSpace(extraNote)
+	}
+	data, err := buildStreamInput(final)
+	if err != nil {
+		return nil, err
+	}
+	buf.Write(data)
+	buf.WriteByte('\n')
+	return buf.Bytes(), nil
 }
 
 // buildStreamInput encodes text as a single-message stream-json payload for
