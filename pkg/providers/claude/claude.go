@@ -17,7 +17,7 @@ import (
 	"github.com/dlnilsson/git-cc-ai/pkg/ui"
 )
 
-const maxBudgetUSD = 1.0
+const defaultBudgetUSD = 1.0
 
 func Generate(reg *providers.Registry, opts providers.Options) (string, error) {
 	chunks, err := git.DiffStagedChunks()
@@ -52,13 +52,18 @@ func Generate(reg *providers.Registry, opts providers.Options) (string, error) {
 		return "", fmt.Errorf("failed to encode stream-json input: %w", err)
 	}
 
+	budgetUSD := opts.Budget
+	if budgetUSD <= 0 {
+		budgetUSD = defaultBudgetUSD
+	}
+
 	args := []string{
 		"--print",
 		"--system-prompt", systemPrompt,
 		"--input-format=stream-json",
 		"--output-format=stream-json", "--verbose", "--include-partial-messages",
 		"--no-session-persistence",
-		"--max-budget-usd", fmt.Sprintf("%g", maxBudgetUSD),
+		"--max-budget-usd", fmt.Sprintf("%g", budgetUSD),
 	}
 	if opts.SessionID != "" {
 		args = append([]string{"--resume=" + opts.SessionID, "--fork-session"}, args...)
@@ -141,7 +146,7 @@ func Generate(reg *providers.Registry, opts providers.Options) (string, error) {
 	}
 
 	msg := commit.WrapMessage(text, commit.BodyLineWidth)
-	return appendUsageComment(msg, result, time.Since(startTime), maxBudgetUSD), nil
+	return appendUsageComment(msg, result, time.Since(startTime), budgetUSD), nil
 }
 
 // parseStreamReasoning extracts displayable reasoning text from assistant

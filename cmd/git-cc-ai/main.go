@@ -7,6 +7,7 @@ import (
 	"os/exec"
 	"os/signal"
 	"sort"
+	"strconv"
 	"strings"
 	"syscall"
 
@@ -62,6 +63,7 @@ Environment:
   GIT_AI_NO_CC:      set to "true" to use standard commit style instead of
                      Conventional Commits.
   GIT_AI_NO_SESSION: set to "true" to skip resuming a CLAUDE_SESSION_ID.
+  GIT_AI_BUDGET:     maximum spend in USD per run (default: 1.0).
 
 Get started:
   1. Stage your changes: git add ...
@@ -179,6 +181,13 @@ func main() {
 	noCC := strings.EqualFold(strings.TrimSpace(os.Getenv("GIT_AI_NO_CC")), "true") || rc.NoCC
 	noSession := strings.EqualFold(strings.TrimSpace(os.Getenv("GIT_AI_NO_SESSION")), "true") || rc.NoSession
 
+	var budget float64
+	if v, err := strconv.ParseFloat(strings.TrimSpace(os.Getenv("GIT_AI_BUDGET")), 64); err == nil && v > 0 {
+		budget = v
+	} else if rc.Budget > 0 {
+		budget = rc.Budget
+	}
+
 	var sessionID string
 	if !noSession {
 		sessionID = rc.SessionID
@@ -191,6 +200,7 @@ func main() {
 		SessionID:   sessionID,
 		ShowSpinner: !noSpinner,
 		NoCC:        noCC,
+		Budget:      budget,
 	})
 	if err != nil {
 		fmt.Fprintf(os.Stdout, "\n\n\n# something went wrong %s\n", err.Error()) //nolint:errcheck

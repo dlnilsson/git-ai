@@ -2,6 +2,7 @@ package agentrc
 
 import (
 	"os"
+	"strconv"
 	"strings"
 )
 
@@ -12,6 +13,7 @@ type Config struct {
 	Model     string
 	NoCC      bool
 	NoSession bool
+	Budget    float64 // GIT_AI_BUDGET — max spend in USD (0 means unset)
 }
 
 // Load reads a .agentrc file and returns its parsed configuration.
@@ -38,6 +40,11 @@ func Load(path string) Config {
 		}
 		if after, ok := strings.CutPrefix(line, "export GIT_AI_NO_SESSION="); ok {
 			cfg.NoSession = strings.EqualFold(strings.TrimSpace(after), "true")
+		}
+		if after, ok := strings.CutPrefix(line, "export GIT_AI_BUDGET="); ok {
+			if v, err := strconv.ParseFloat(strings.TrimSpace(after), 64); err == nil && v > 0 {
+				cfg.Budget = v
+			}
 		}
 	}
 	return cfg
