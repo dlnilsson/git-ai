@@ -10,6 +10,38 @@ type PromptOptions struct {
 	NoCC      bool
 }
 
+// BuildSystemPrompt returns the stable system-prompt text (instructions +
+// skill rules). It is suitable for passing as --system-prompt so that Claude
+// can cache it across invocations where only the diff changes.
+func BuildSystemPrompt(opts PromptOptions) string {
+	var b strings.Builder
+	if opts.NoCC {
+		b.WriteString("Generate a commit message from the staged git diff.\n")
+	} else {
+		b.WriteString("Generate a Conventional Commit message from the staged git diff.\n")
+	}
+	b.WriteString("Use the instructions below and output only the commit message.\n")
+	b.WriteString("Limit each line in the commit body to 72 characters; wrap at sentence boundaries (e.g. after a period and space) when possible so lines do not break mid-sentence.\n\n")
+	b.WriteString("Instructions:\n")
+	b.WriteString(opts.SkillText)
+	return b.String()
+}
+
+// BuildUserMessage returns the user-facing message text (diff + optional
+// extra note). This is the part that changes on every run.
+func BuildUserMessage(opts PromptOptions) string {
+	var b strings.Builder
+	b.WriteString("Staged diff:\n")
+	b.WriteString(opts.Diff)
+	b.WriteByte('\n')
+	if strings.TrimSpace(opts.ExtraNote) != "" {
+		b.WriteString("\nExtra context:\n")
+		b.WriteString(strings.TrimSpace(opts.ExtraNote))
+		b.WriteByte('\n')
+	}
+	return b.String()
+}
+
 // BuildConventionalPrompt builds a backend-agnostic prompt for generating
 // a commit message from a staged diff.
 func BuildConventionalPrompt(opts PromptOptions) string {

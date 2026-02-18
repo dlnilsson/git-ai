@@ -2,6 +2,7 @@ package claude
 
 import (
 	"bufio"
+	"bytes"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -39,14 +40,24 @@ func Generate(reg *providers.Registry, opts providers.Options) (string, error) {
 		}
 	}
 
-	prompt := commit.BuildConventionalPrompt(commit.PromptOptions{
+	promptOpts := commit.PromptOptions{
 		SkillText: skillText,
 		Diff:      diff,
 		ExtraNote: opts.ExtraNote,
 		NoCC:      opts.NoCC,
-	})
+	}
+	systemPrompt := commit.BuildSystemPrompt(promptOpts)
+	userMessage := commit.BuildUserMessage(promptOpts)
+
+	stdinPayload, err := buildStreamInput(userMessage)
+	if err != nil {
+		return "", fmt.Errorf("failed to encode stream-json input: %w", err)
+	}
 
 	args := []string{
+		"--print",
+		"--system-prompt", systemPrompt,
+		"--input-format=stream-json",
 		"--output-format=stream-json", "--verbose", "--include-partial-messages",
 		"--no-session-persistence",
 		"--max-budget-usd", "1",
@@ -55,7 +66,7 @@ func Generate(reg *providers.Registry, opts providers.Options) (string, error) {
 		args = append([]string{"--resume=" + opts.SessionID, "--fork-session"}, args...)
 	}
 	cmd := exec.Command("claude", args...)
-	cmd.Stdin = strings.NewReader(prompt)
+	cmd.Stdin = bytes.NewReader(stdinPayload)
 	setProcessGroup(cmd)
 
 	startTime := time.Now()
@@ -75,7 +86,7 @@ func Generate(reg *providers.Registry, opts providers.Options) (string, error) {
 	cmd.Stderr = os.Stderr
 
 	if err = cmd.Start(); err != nil {
-		return "", err
+		return "", fmt.Errorf("%w\n# %s", err, cmdString(cmd, userMessage))
 	}
 	reg.Register(cmd, stopSpinner)
 	defer reg.Unregister()
@@ -114,7 +125,7 @@ func Generate(reg *providers.Registry, opts providers.Options) (string, error) {
 		if reg.WasInterrupted() {
 			return "", errors.New("claude invocation interrupted")
 		}
-		return "", errors.New("claude invocation failed")
+		return "", fmt.Errorf("claude invocation failed\n# %s", cmdString(cmd, userMessage))
 	}
 
 	responseText := result.Result
@@ -293,6 +304,46 @@ type claudeModelUsage struct {
 	CacheCreationInputTokens int     `json:"cacheCreationInputTokens"`
 	WebSearchRequests        int     `json:"webSearchRequests"`
 	CostUSD                  float64 `json:"costUSD"`
+}
+
+// buildStreamInput encodes text as a single-message stream-json payload for
+// use with --input-format=stream-json.
+func buildStreamInput(text string) ([]byte, error) {
+	type content struct {
+		Type string `json:"type"`
+		Text string `json:"text"`
+	}
+	type message struct {
+		Type    string    `json:"type"`
+		Role    string    `json:"role"`
+		Content []content `json:"content"`
+	}
+	type envelope struct {
+		Type    string  `json:"type"`
+		Message message `json:"message"`
+	}
+	v := envelope{
+		Type: "user",
+		Message: message{
+			Type:    "message",
+			Role:    "user",
+			Content: []content{{Type: "text", Text: text}},
+		},
+	}
+	return json.Marshal(v)
+}
+
+// cmdString returns a human-readable representation of cmd with a truncated
+// view of the stdin payload appended, so error messages show what was sent.
+func cmdString(cmd *exec.Cmd, stdinText string) string {
+	const maxStdin = 300
+	s := stdinText
+	suffix := ""
+	if len(s) > maxStdin {
+		s = s[:maxStdin]
+		suffix = "..."
+	}
+	return cmd.String() + "\n# stdin: " + s + suffix
 }
 
 func appendUsageComment(message string, cr claudeResult, elapsed time.Duration) string {
