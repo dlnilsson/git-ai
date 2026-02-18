@@ -59,8 +59,9 @@ Backends:
 Environment:
   GIT_AI_BACKEND: backend provider (auto-detected from PATH if unset).
   GIT_AI_MODEL:   model name (overridden by -m / --model flags).
-  GIT_AI_NO_CC:   set to "true" to use standard commit style instead of
-                  Conventional Commits.
+  GIT_AI_NO_CC:      set to "true" to use standard commit style instead of
+                     Conventional Commits.
+  GIT_AI_NO_SESSION: set to "true" to skip resuming a CLAUDE_SESSION_ID.
 
 Get started:
   1. Stage your changes: git add ...
@@ -176,12 +177,18 @@ func main() {
 	}()
 
 	noCC := strings.EqualFold(strings.TrimSpace(os.Getenv("GIT_AI_NO_CC")), "true") || rc.NoCC
+	noSession := strings.EqualFold(strings.TrimSpace(os.Getenv("GIT_AI_NO_SESSION")), "true") || rc.NoSession
+
+	var sessionID string
+	if !noSession {
+		sessionID = rc.SessionID
+	}
 
 	message, err := b.Generate(&registry, providers.Options{
 		SkillPath:   skillPath,
 		ExtraNote:   extraNote,
 		Model:       model,
-		SessionID:   rc.SessionID,
+		SessionID:   sessionID,
 		ShowSpinner: !noSpinner,
 		NoCC:        noCC,
 	})
