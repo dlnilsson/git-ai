@@ -47,7 +47,6 @@ func Generate(reg *providers.Registry, opts providers.Options) (string, error) {
 	})
 
 	args := []string{
-		"-p", prompt,
 		"--output-format=stream-json", "--verbose", "--include-partial-messages",
 		"--no-session-persistence",
 		"--max-budget-usd", "1",
@@ -56,6 +55,7 @@ func Generate(reg *providers.Registry, opts providers.Options) (string, error) {
 		args = append([]string{"--resume=" + opts.SessionID, "--fork-session"}, args...)
 	}
 	cmd := exec.Command("claude", args...)
+	cmd.Stdin = strings.NewReader(prompt)
 	setProcessGroup(cmd)
 
 	startTime := time.Now()
