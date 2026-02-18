@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"slices"
 	"strings"
 	"time"
 
@@ -18,6 +19,21 @@ import (
 )
 
 const defaultBudgetUSD = 1.0
+const defaultModel = "claude-haiku-4-5-20251001"
+
+var allowedModels = []string{
+	"claude-haiku-4-5-20251001",
+	"claude-sonnet-4-6",
+	"claude-opus-4-6",
+}
+
+func resolveModel(model string) string {
+	model = strings.TrimSpace(model)
+	if slices.Contains(allowedModels, model) {
+		return model
+	}
+	return defaultModel
+}
 
 func Generate(reg *providers.Registry, opts providers.Options) (string, error) {
 	chunks, err := git.DiffStagedChunks()
@@ -56,9 +72,11 @@ func Generate(reg *providers.Registry, opts providers.Options) (string, error) {
 	if budgetUSD <= 0 {
 		budgetUSD = defaultBudgetUSD
 	}
+	model := resolveModel(opts.Model)
 
 	args := []string{
 		"--print",
+		"--model", model,
 		"--system-prompt", systemPrompt,
 		"--input-format=stream-json",
 		"--output-format=stream-json", "--verbose", "--include-partial-messages",
@@ -75,7 +93,7 @@ func Generate(reg *providers.Registry, opts providers.Options) (string, error) {
 	startTime := time.Now()
 	var stopSpinner func()
 	if opts.ShowSpinner {
-		stopSpinner = ui.StartSpinner(ui.RandomSpinnerMessage(), "claude", reg)
+		stopSpinner = ui.StartSpinner(ui.RandomSpinnerMessage(), "claude +"+model, reg)
 		defer stopSpinner()
 		if opts.SessionID != "" {
 			ui.SendSpinnerReasoning("Resuming session " + opts.SessionID)
