@@ -50,7 +50,7 @@ func Generate(reg *providers.Registry, opts providers.Options) (string, error) {
 		"-p", prompt,
 		"--output-format=stream-json", "--verbose", "--include-partial-messages",
 		"--no-session-persistence",
-		"--max-budget-usd", "0.01",
+		"--max-budget-usd", "1",
 	}
 	if opts.SessionID != "" {
 		args = append([]string{"--resume=" + opts.SessionID, "--fork-session"}, args...)
