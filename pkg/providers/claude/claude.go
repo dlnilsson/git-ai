@@ -17,6 +17,8 @@ import (
 	"github.com/dlnilsson/git-cc-ai/pkg/ui"
 )
 
+const maxBudgetUSD = 1.0
+
 func Generate(reg *providers.Registry, opts providers.Options) (string, error) {
 	chunks, err := git.DiffStagedChunks()
 	if err != nil {
@@ -56,7 +58,7 @@ func Generate(reg *providers.Registry, opts providers.Options) (string, error) {
 		"--input-format=stream-json",
 		"--output-format=stream-json", "--verbose", "--include-partial-messages",
 		"--no-session-persistence",
-		"--max-budget-usd", "1",
+		"--max-budget-usd", fmt.Sprintf("%g", maxBudgetUSD),
 	}
 	if opts.SessionID != "" {
 		args = append([]string{"--resume=" + opts.SessionID, "--fork-session"}, args...)
@@ -139,7 +141,7 @@ func Generate(reg *providers.Registry, opts providers.Options) (string, error) {
 	}
 
 	msg := commit.WrapMessage(text, commit.BodyLineWidth)
-	return appendUsageComment(msg, result, time.Since(startTime)), nil
+	return appendUsageComment(msg, result, time.Since(startTime), maxBudgetUSD), nil
 }
 
 // parseStreamReasoning extracts displayable reasoning text from assistant
@@ -370,7 +372,7 @@ func cmdString(cmd *exec.Cmd, stdinText string) string {
 	return cmd.String() + "\n# stdin: " + s + suffix
 }
 
-func appendUsageComment(message string, cr claudeResult, elapsed time.Duration) string {
+func appendUsageComment(message string, cr claudeResult, elapsed time.Duration, budgetUSD float64) string {
 	if cr.SessionID == "" && cr.TotalCostUSD == 0 {
 		return message
 	}
@@ -401,6 +403,13 @@ func appendUsageComment(message string, cr claudeResult, elapsed time.Duration) 
 			b.WriteString(" web_searches=")
 			b.WriteString(fmt.Sprint(mu.WebSearchRequests))
 		}
+	}
+
+	if budgetUSD > 0 && cr.TotalCostUSD > budgetUSD {
+		b.WriteString("\n# error: max_budget_exceeded")
+	} else if cr.IsError && cr.Subtype != "" {
+		b.WriteString("\n# error: ")
+		b.WriteString(cr.Subtype)
 	}
 
 	return b.String()
