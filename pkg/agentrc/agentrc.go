@@ -10,6 +10,7 @@ type Config struct {
 	SessionID string
 	Backend   string
 	Model     string
+	NoCC      bool
 }
 
 // Load reads a .agentrc file and returns its parsed configuration.
@@ -30,6 +31,9 @@ func Load(path string) Config {
 		}
 		if after, ok := strings.CutPrefix(line, "export GIT_AI_MODEL="); ok {
 			cfg.Model = strings.TrimSpace(after)
+		}
+		if after, ok := strings.CutPrefix(line, "export GIT_AI_NO_CC="); ok {
+			cfg.NoCC = strings.EqualFold(strings.TrimSpace(after), "true")
 		}
 	}
 	return cfg

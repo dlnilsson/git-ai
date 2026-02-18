@@ -94,6 +94,9 @@ func Generate(reg *providers.Registry, opts providers.Options) (string, error) {
 	}
 
 	skillText = commit.ConventionalSpec
+	if opts.NoCC {
+		skillText = commit.StandardCommitRule
+	}
 	if opts.SkillPath != "" {
 		if data, readErr := os.ReadFile(opts.SkillPath); readErr == nil {
 			trimmed := strings.TrimSpace(string(data))
@@ -107,6 +110,7 @@ func Generate(reg *providers.Registry, opts providers.Options) (string, error) {
 		SkillText: skillText,
 		Diff:      diff,
 		ExtraNote: opts.ExtraNote,
+		NoCC:      opts.NoCC,
 	})
 
 	args = splitArgs(codexArgs)

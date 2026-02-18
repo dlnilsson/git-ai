@@ -6,6 +6,7 @@ type Options struct {
 	Model       string
 	SessionID   string
 	ShowSpinner bool
+	NoCC        bool
 }
 
 type Backend interface {

@@ -59,6 +59,8 @@ Backends:
 Environment:
   GIT_AI_BACKEND: backend provider (auto-detected from PATH if unset).
   GIT_AI_MODEL:   model name (overridden by -m / --model flags).
+  GIT_AI_NO_CC:   set to "true" to use standard commit style instead of
+                  Conventional Commits.
 
 Get started:
   1. Stage your changes: git add ...
@@ -173,12 +175,15 @@ func main() {
 		}
 	}()
 
+	noCC := strings.EqualFold(strings.TrimSpace(os.Getenv("GIT_AI_NO_CC")), "true") || rc.NoCC
+
 	message, err := b.Generate(&registry, providers.Options{
 		SkillPath:   skillPath,
 		ExtraNote:   extraNote,
 		Model:       model,
 		SessionID:   rc.SessionID,
 		ShowSpinner: !noSpinner,
+		NoCC:        noCC,
 	})
 	if err != nil {
 		fmt.Fprintf(os.Stdout, "\n\n\n# something went wrong %s\n", err.Error()) //nolint:errcheck
