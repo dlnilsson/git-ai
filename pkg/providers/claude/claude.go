@@ -46,7 +46,7 @@ func Generate(reg *providers.Registry, opts providers.Options) (string, error) {
 		"-p", prompt,
 		"--output-format=stream-json", "--verbose", "--include-partial-messages",
 		"--no-session-persistence",
-		"--max-budget-usd", "1",
+		"--max-budget-usd", "0.01",
 	}
 	if opts.SessionID != "" {
 		args = append([]string{"--resume=" + opts.SessionID, "--fork-session"}, args...)
@@ -76,25 +76,29 @@ func Generate(reg *providers.Registry, opts providers.Options) (string, error) {
 	reg.Register(cmd, stopSpinner)
 	defer reg.Unregister()
 
-	var result claudeResult
-	var deltaAccum strings.Builder
+	var (
+		result        claudeResult
+		lastAssistant string
+		deltaAccum    strings.Builder
+	)
 	scanner := bufio.NewScanner(stdout)
 	scanner.Buffer(make([]byte, 0, 1024*64), 1024*1024)
 	for scanner.Scan() {
 		line := scanner.Text()
 
-		if delta := parseTextDelta(line); delta != "" {
-			deltaAccum.WriteString(delta)
-			if opts.ShowSpinner {
+		if opts.ShowSpinner {
+			if delta := parseTextDelta(line); delta != "" {
+				deltaAccum.WriteString(delta)
 				ui.SendSpinnerReasoning(strings.TrimSpace(deltaAccum.String()))
-			}
-		} else if opts.ShowSpinner {
-			if text := parseStreamReasoning(line); text != "" {
+			} else if text := parseStreamReasoning(line); text != "" {
 				deltaAccum.Reset()
 				ui.SendSpinnerReasoning(text)
 			}
 		}
 
+		if text := parseAssistantText(line); text != "" {
+			lastAssistant = text
+		}
 		if r, ok := parseResultEvent(line); ok {
 			result = r
 		}
@@ -109,12 +113,10 @@ func Generate(reg *providers.Registry, opts providers.Options) (string, error) {
 		return "", errors.New("claude invocation failed")
 	}
 
-	// Use result.Result when available; fall back to accumulated text deltas
-	// (e.g. when max-budget-usd is hit, result.Result is empty but deltas
-	// contain the full response).
 	responseText := result.Result
-	if responseText == "" {
-		responseText = deltaAccum.String()
+	if responseText == "" && strings.HasPrefix(result.Subtype, "error_") {
+		fmt.Fprintf(os.Stderr, "claude: %s\n", result.Subtype)
+		responseText = lastAssistant
 	}
 
 	text := commit.StripCodeFence(strings.TrimSpace(responseText))
@@ -180,6 +182,33 @@ func parseStreamReasoning(raw string) string {
 		}
 	}
 	return toolText
+}
+
+// parseAssistantText extracts content[0].text from type "assistant" events.
+func parseAssistantText(raw string) string {
+	line := strings.TrimSpace(raw)
+	if line == "" {
+		return ""
+	}
+	var msg struct {
+		Type    string `json:"type"`
+		Message struct {
+			Content []struct {
+				Type string `json:"type"`
+				Text string `json:"text"`
+			} `json:"content"`
+		} `json:"message"`
+	}
+	if err := json.Unmarshal([]byte(line), &msg); err != nil {
+		return ""
+	}
+	if msg.Type != "assistant" || len(msg.Message.Content) == 0 {
+		return ""
+	}
+	if msg.Message.Content[0].Type != "text" {
+		return ""
+	}
+	return msg.Message.Content[0].Text
 }
 
 // parseTextDelta extracts text from stream_event content_block_delta
