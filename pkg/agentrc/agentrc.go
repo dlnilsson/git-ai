@@ -22,7 +22,7 @@ func Load(path string) Config {
 		return Config{}
 	}
 	var cfg Config
-	for _, line := range strings.Split(string(data), "\n") {
+	for line := range strings.SplitSeq(string(data), "\n") {
 		line = strings.TrimSpace(line)
 		if after, ok := strings.CutPrefix(line, "export CLAUDE_SESSION_ID="); ok {
 			cfg.SessionID = strings.TrimSpace(after)

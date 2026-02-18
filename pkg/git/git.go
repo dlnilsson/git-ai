@@ -83,7 +83,7 @@ func DiffStagedChunks() ([]DiffChunk, error) {
 
 	// Group files by their immediate parent directory.
 	dirSet := map[string]struct{}{}
-	for _, file := range strings.Split(strings.TrimSpace(string(namesOut)), "\n") {
+	for file := range strings.SplitSeq(strings.TrimSpace(string(namesOut)), "\n") {
 		file = strings.TrimSpace(file)
 		if file == "" {
 			continue
