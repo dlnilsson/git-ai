@@ -76,7 +76,6 @@ func Generate(reg *providers.Registry, opts providers.Options) (string, error) {
 		lastError     string
 		output        string
 		reasoningText string
-		scanner       *bufio.Scanner
 		skillText     string
 		stderr        io.ReadCloser
 		stdout        io.ReadCloser
@@ -149,41 +148,55 @@ func Generate(reg *providers.Registry, opts providers.Options) (string, error) {
 		stderrBuf strings.Builder
 	)
 	go func() {
-		sc := bufio.NewScanner(stderr)
-		for sc.Scan() {
-			line := sc.Text()
-			stderrBuf.WriteString(line)
-			stderrBuf.WriteByte('\n')
-			if id := parseThreadStartedJSON(line); id != "" {
-				thread.set(id)
+		reader := bufio.NewReader(stderr)
+		for {
+			line, readErr := reader.ReadString('\n')
+			line = strings.TrimRight(line, "\r\n")
+			if strings.TrimSpace(line) != "" {
+				stderrBuf.WriteString(line)
+				stderrBuf.WriteByte('\n')
+				if id := parseThreadStartedJSON(line); id != "" {
+					thread.set(id)
+				}
+			}
+			if errors.Is(readErr, io.EOF) {
+				break
+			}
+			if readErr != nil {
+				break
 			}
 		}
 	}()
 
-	scanner = bufio.NewScanner(stdout)
-	scanner.Buffer(make([]byte, 0, 1024*64), 1024*1024)
-	for scanner.Scan() {
-		line := scanner.Text()
-		buffer.WriteString(line)
-		buffer.WriteByte('\n')
-		if id := parseThreadStartedJSON(line); id != "" {
-			thread.set(id)
-		}
-		if opts.ShowSpinner {
-			reasoningText = parseReasoningJSON(line)
-			if strings.TrimSpace(reasoningText) != "" {
-				ui.SendSpinnerReasoning(reasoningText)
+	reader := bufio.NewReader(stdout)
+	for {
+		line, readErr := reader.ReadString('\n')
+		line = strings.TrimRight(line, "\r\n")
+		if strings.TrimSpace(line) != "" {
+			buffer.WriteString(line)
+			buffer.WriteByte('\n')
+			if id := parseThreadStartedJSON(line); id != "" {
+				thread.set(id)
+			}
+			if opts.ShowSpinner {
+				reasoningText = parseReasoningJSON(line)
+				if strings.TrimSpace(reasoningText) != "" {
+					ui.SendSpinnerReasoning(reasoningText)
+				}
+			}
+			if updated, ok := parseUsageJSON(line); ok {
+				usage = updated
+			}
+			if errMsg := parseErrorJSON(line); errMsg != "" {
+				lastError = errMsg
 			}
 		}
-		if updated, ok := parseUsageJSON(line); ok {
-			usage = updated
+		if errors.Is(readErr, io.EOF) {
+			break
 		}
-		if errMsg := parseErrorJSON(line); errMsg != "" {
-			lastError = errMsg
+		if readErr != nil {
+			return "", readErr
 		}
-	}
-	if err = scanner.Err(); err != nil {
-		return "", err
 	}
 	if err = cmd.Wait(); err != nil {
 		if lastError != "" {
