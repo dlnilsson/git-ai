@@ -36,9 +36,7 @@ type spinnerModel struct {
 }
 
 type spinnerHandle struct {
-	program  *tea.Program
-	reasonCh chan string
-	doneCh   chan struct{}
+	program *tea.Program
 }
 
 var spinnerMessages = []string{
@@ -95,11 +93,7 @@ func StartSpinner(message string, backend string, forwarder SignalForwarder) fun
 	lipgloss.SetColorProfile(termenv.ANSI)
 	markdownRenderer = newMarkdownRenderer()
 	p := tea.NewProgram(newSpinnerModel(message, backend, forwarder), tea.WithOutput(getTerminalOutput()))
-	handle := &spinnerHandle{
-		program:  p,
-		reasonCh: make(chan string, 8),
-		doneCh:   make(chan struct{}),
-	}
+	handle := &spinnerHandle{program: p}
 	activeSpinner = handle
 	done := make(chan struct{})
 	go func() {
@@ -133,9 +127,8 @@ func SendSpinnerReasoning(text string) {
 	if activeSpinner == nil {
 		return
 	}
-	select {
-	case activeSpinner.reasonCh <- text:
-	default:
+	if strings.TrimSpace(text) != "" {
+		activeSpinner.program.Send(spinnerReasoningMsg(text))
 	}
 }
 
