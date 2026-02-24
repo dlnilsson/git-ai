@@ -147,15 +147,16 @@ func Generate(ctx context.Context, reg *providers.Registry, opts providers.Optio
 	var (
 		thread    threadTracker
 		stderrBuf strings.Builder
+		stderrWG  sync.WaitGroup
 	)
+	stderrWG.Add(1)
 	go func() {
-		reader := bufio.NewReader(stderr)
+		defer stderrWG.Done()
+		reader := bufio.NewReader(io.TeeReader(stderr, &stderrBuf))
 		for {
 			line, readErr := reader.ReadString('\n')
 			line = strings.TrimRight(line, "\r\n")
 			if strings.TrimSpace(line) != "" {
-				stderrBuf.WriteString(line)
-				stderrBuf.WriteByte('\n')
 				if id := parseThreadStartedJSON(line); id != "" {
 					thread.set(id)
 				}
@@ -169,13 +170,11 @@ func Generate(ctx context.Context, reg *providers.Registry, opts providers.Optio
 		}
 	}()
 
-	reader := bufio.NewReader(stdout)
+	reader := bufio.NewReader(io.TeeReader(stdout, &buffer))
 	for {
 		line, readErr := reader.ReadString('\n')
 		line = strings.TrimRight(line, "\r\n")
 		if strings.TrimSpace(line) != "" {
-			buffer.WriteString(line)
-			buffer.WriteByte('\n')
 			if id := parseThreadStartedJSON(line); id != "" {
 				thread.set(id)
 			}
@@ -200,6 +199,7 @@ func Generate(ctx context.Context, reg *providers.Registry, opts providers.Optio
 		}
 	}
 	if err = cmd.Wait(); err != nil {
+		stderrWG.Wait()
 		if lastError != "" {
 			return "", fmt.Errorf("codex invocation failed: %s", lastError)
 		}
@@ -208,6 +208,7 @@ func Generate(ctx context.Context, reg *providers.Registry, opts providers.Optio
 		}
 		return "", fmt.Errorf("codex invocation failed: %w", err)
 	}
+	stderrWG.Wait()
 	if reg.WasInterrupted() {
 		if id := thread.get(); id != "" {
 			fmt.Fprintln(os.Stderr, id)
