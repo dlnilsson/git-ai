@@ -118,11 +118,14 @@ func StartSpinner(message string, backend string, forwarder SignalForwarder) fun
 			}
 		}
 	}()
+	var stopOnce sync.Once
 	return func() {
-		handle.program.Send(spinnerDoneMsg{})
-		<-done
-		close(handle.doneCh)
-		activeSpinner = nil
+		stopOnce.Do(func() {
+			handle.program.Send(spinnerDoneMsg{})
+			<-done
+			close(handle.doneCh)
+			activeSpinner = nil
+		})
 	}
 }
 

@@ -2,6 +2,7 @@ package codex
 
 import (
 	"bufio"
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -62,7 +63,7 @@ var models = []string{
 	"gpt-5-codex-mini",
 }
 
-func Generate(reg *providers.Registry, opts providers.Options) (string, error) {
+func Generate(ctx context.Context, reg *providers.Registry, opts providers.Options) (string, error) {
 	const (
 		codexCmd  = "codex"
 		codexArgs = "exec --json"
@@ -117,7 +118,7 @@ func Generate(reg *providers.Registry, opts providers.Options) (string, error) {
 	if strings.TrimSpace(opts.Model) != "" {
 		args = addModelArg(args, opts.Model)
 	}
-	cmd = exec.Command(codexCmd, args...)
+	cmd = exec.CommandContext(ctx, codexCmd, args...)
 	cmd.Stdin = strings.NewReader(prompt)
 	setProcessGroup(cmd)
 	startTime = time.Now()

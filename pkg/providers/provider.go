@@ -1,5 +1,7 @@
 package providers
 
+import "context"
+
 type Options struct {
 	SkillPath   string
 	ExtraNote   string
@@ -11,5 +13,5 @@ type Options struct {
 }
 
 type Backend interface {
-	Generate(reg *Registry, opts Options) (string, error)
+	Generate(ctx context.Context, reg *Registry, opts Options) (string, error)
 }

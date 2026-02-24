@@ -3,6 +3,7 @@ package claude
 import (
 	"bufio"
 	"bytes"
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -35,7 +36,7 @@ func resolveModel(model string) string {
 	return defaultModel
 }
 
-func Generate(reg *providers.Registry, opts providers.Options) (string, error) {
+func Generate(ctx context.Context, reg *providers.Registry, opts providers.Options) (string, error) {
 	chunks, err := git.DiffStagedChunks()
 	if err != nil {
 		return "", err
@@ -86,7 +87,7 @@ func Generate(reg *providers.Registry, opts providers.Options) (string, error) {
 	if opts.SessionID != "" {
 		args = append([]string{"--resume=" + opts.SessionID, "--fork-session"}, args...)
 	}
-	cmd := exec.Command("claude", args...)
+	cmd := exec.CommandContext(ctx, "claude", args...)
 	cmd.Stdin = bytes.NewReader(stdinPayload)
 	setProcessGroup(cmd)
 
