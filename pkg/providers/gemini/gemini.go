@@ -3,9 +3,11 @@ package gemini
 import (
 	"bufio"
 	"bytes"
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
 	"slices"
@@ -41,7 +43,7 @@ func resolveModel(model string) string {
 	return defaultModel
 }
 
-func Generate(reg *providers.Registry, opts providers.Options) (string, error) {
+func Generate(ctx context.Context, reg *providers.Registry, opts providers.Options) (string, error) {
 	diff, err := git.DiffStaged()
 	if err != nil {
 		return "", err
@@ -80,7 +82,7 @@ func Generate(reg *providers.Registry, opts providers.Options) (string, error) {
 		args = append(args, "--resume", opts.SessionID)
 	}
 
-	cmd := exec.Command("gemini", args...)
+	cmd := exec.CommandContext(ctx, "gemini", args...)
 	setProcessGroup(cmd)
 
 	startTime := time.Now()
@@ -106,17 +108,24 @@ func Generate(reg *providers.Registry, opts providers.Options) (string, error) {
 
 	var (
 		accumulatedContent strings.Builder
+		stdoutBuf          strings.Builder
 		sessionID          string
 		stats              geminiStats
 		status             string
 	)
 
-	scanner := bufio.NewScanner(stdout)
-	scanner.Buffer(make([]byte, 0, 1024*64), 1024*1024)
-	for scanner.Scan() {
-		line := scanner.Text()
+	reader := bufio.NewReader(io.TeeReader(stdout, &stdoutBuf))
+	for {
+		line, readErr := reader.ReadString('\n')
+		line = strings.TrimRight(line, "\r\n")
 		var raw map[string]any
 		if err := json.Unmarshal([]byte(line), &raw); err != nil {
+			if errors.Is(readErr, io.EOF) {
+				break
+			}
+			if readErr != nil {
+				return "", readErr
+			}
 			continue
 		}
 		parsed := parseGeminiEvent(raw)
@@ -135,10 +144,12 @@ func Generate(reg *providers.Registry, opts providers.Options) (string, error) {
 				ui.SendSpinnerReasoning(strings.TrimSpace(accumulatedContent.String()))
 			}
 		}
-	}
-
-	if err = scanner.Err(); err != nil {
-		return "", err
+		if errors.Is(readErr, io.EOF) {
+			break
+		}
+		if readErr != nil {
+			return "", readErr
+		}
 	}
 	if err = cmd.Wait(); err != nil {
 		if reg.WasInterrupted() {
