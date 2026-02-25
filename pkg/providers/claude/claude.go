@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
 	"slices"
@@ -117,31 +118,36 @@ func Generate(ctx context.Context, reg *providers.Registry, opts providers.Optio
 		result        claudeResult
 		lastAssistant string
 		deltaAccum    strings.Builder
+		buffer        strings.Builder
 	)
-	scanner := bufio.NewScanner(stdout)
-	scanner.Buffer(make([]byte, 0, 1024*64), 1024*1024)
-	for scanner.Scan() {
-		line := scanner.Text()
+	reader := bufio.NewReader(io.TeeReader(stdout, &buffer))
+	for {
+		line, readErr := reader.ReadString('\n')
+		line = strings.TrimRight(line, "\r\n")
+		if strings.TrimSpace(line) != "" {
+			if opts.ShowSpinner {
+				if delta := parseTextDelta(line); delta != "" {
+					deltaAccum.WriteString(delta)
+					ui.SendSpinnerReasoning(strings.TrimSpace(deltaAccum.String()))
+				} else if text := parseStreamReasoning(line); text != "" {
+					deltaAccum.Reset()
+					ui.SendSpinnerReasoning(text)
+				}
+			}
 
-		if opts.ShowSpinner {
-			if delta := parseTextDelta(line); delta != "" {
-				deltaAccum.WriteString(delta)
-				ui.SendSpinnerReasoning(strings.TrimSpace(deltaAccum.String()))
-			} else if text := parseStreamReasoning(line); text != "" {
-				deltaAccum.Reset()
-				ui.SendSpinnerReasoning(text)
+			if text := parseAssistantText(line); text != "" {
+				lastAssistant = text
+			}
+			if r, ok := parseResultEvent(line); ok {
+				result = r
 			}
 		}
-
-		if text := parseAssistantText(line); text != "" {
-			lastAssistant = text
+		if errors.Is(readErr, io.EOF) {
+			break
 		}
-		if r, ok := parseResultEvent(line); ok {
-			result = r
+		if readErr != nil {
+			return "", readErr
 		}
-	}
-	if err = scanner.Err(); err != nil {
-		return "", err
 	}
 	if err = cmd.Wait(); err != nil {
 		if reg.WasInterrupted() {
