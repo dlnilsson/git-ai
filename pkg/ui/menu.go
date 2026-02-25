@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"strings"
 
-	tea "github.com/charmbracelet/bubbletea"
+	tea "charm.land/bubbletea/v2"
 )
 
 type modelSelectModel struct {
@@ -38,7 +38,7 @@ func (m modelSelectModel) Init() tea.Cmd {
 
 func (m modelSelectModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
-	case tea.KeyMsg:
+	case tea.KeyPressMsg:
 		switch msg.String() {
 		case "ctrl+c", "esc", "q":
 			return m, tea.Quit
@@ -59,9 +59,9 @@ func (m modelSelectModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
-func (m modelSelectModel) View() string {
+func (m modelSelectModel) View() tea.View {
 	if m.done {
-		return "\r\033[2K"
+		return tea.NewView("\r\033[2K")
 	}
 	var b strings.Builder
 	b.WriteString("\nSelect a model:\n\n")
@@ -73,5 +73,5 @@ func (m modelSelectModel) View() string {
 		b.WriteString(fmt.Sprintf(" %s %s\n", cursor, choice))
 	}
 	b.WriteString("\nEnter to select, q/esc to cancel.\n")
-	return b.String()
+	return tea.NewView(b.String())
 }

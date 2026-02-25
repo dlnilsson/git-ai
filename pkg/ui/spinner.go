@@ -9,11 +9,10 @@ import (
 	"sync"
 	"time"
 
-	"github.com/charmbracelet/bubbles/spinner"
-	tea "github.com/charmbracelet/bubbletea"
+	"charm.land/bubbles/v2/spinner"
+	tea "charm.land/bubbletea/v2"
+	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/glamour"
-	"github.com/charmbracelet/lipgloss"
-	"github.com/muesli/termenv"
 )
 
 type SignalForwarder interface {
@@ -92,7 +91,6 @@ func getTerminalOutput() io.Writer {
 
 func StartSpinner(message string, backend string, forwarder SignalForwarder) func() {
 	_ = os.Setenv("CLICOLOR_FORCE", "1")
-	lipgloss.SetColorProfile(termenv.ANSI)
 	markdownRenderer = newMarkdownRenderer()
 	p := tea.NewProgram(newSpinnerModel(message, backend, forwarder), tea.WithOutput(getTerminalOutput()))
 	handle := &spinnerHandle{
@@ -167,7 +165,7 @@ func (m spinnerModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.reasoning = string(msg)
 		m.reasoningRendered = renderReasoning(m.reasoning)
 		return m, nil
-	case tea.KeyMsg:
+	case tea.KeyPressMsg:
 		if msg.String() == "ctrl+c" && m.forwarder != nil {
 			m.forwarder.ForwardSignal(os.Interrupt)
 			return m, tea.Quit
@@ -178,9 +176,9 @@ func (m spinnerModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return m, cmd
 }
 
-func (m spinnerModel) View() string {
+func (m spinnerModel) View() tea.View {
 	if m.done {
-		return "\r\033[2K"
+		return tea.NewView("\r\033[2K")
 	}
 	elapsed := time.Since(m.start).Seconds()
 	elapsedStr := fmt.Sprintf("%.1fs", elapsed)
@@ -189,9 +187,9 @@ func (m spinnerModel) View() string {
 		backendTag = " " + reasoningStyle("(using "+m.backend+")")
 	}
 	if strings.TrimSpace(m.reasoningRendered) != "" {
-		return fmt.Sprintf("\n  %s %s%s (%s)\n  %s\n", m.spinner.View(), m.message, backendTag, elapsedStr, m.reasoningRendered)
+		return tea.NewView(fmt.Sprintf("\n  %s %s%s (%s)\n  %s\n", m.spinner.View(), m.message, backendTag, elapsedStr, m.reasoningRendered))
 	}
-	return fmt.Sprintf("\n  %s %s%s (%s)\n", m.spinner.View(), m.message, backendTag, elapsedStr)
+	return tea.NewView(fmt.Sprintf("\n  %s %s%s (%s)\n", m.spinner.View(), m.message, backendTag, elapsedStr))
 }
 
 func newMarkdownRenderer() *glamour.TermRenderer {
