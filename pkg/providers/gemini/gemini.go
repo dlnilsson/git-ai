@@ -9,7 +9,6 @@ import (
 	"io"
 	"os"
 	"os/exec"
-	"slices"
 	"strings"
 	"time"
 
@@ -26,17 +25,8 @@ var models = []string{
 	"gemini-2.5-flash",
 }
 
-func Models() []string {
-	return append([]string{}, models...)
-}
-
-func IsModelSupported(name string) bool {
-	return modelInList(name, models)
-}
-
 func resolveModel(model string) string {
-	model = strings.TrimSpace(model)
-	if modelInList(model, models) {
+	if strings.TrimSpace(model) != "" {
 		return model
 	}
 	return defaultModel
@@ -228,10 +218,6 @@ func toInt(v any) int {
 	default:
 		return 0
 	}
-}
-
-func modelInList(name string, list []string) bool {
-	return slices.Contains(list, name)
 }
 
 func appendUsageComment(message string, sessionID string, stats geminiStats, elapsed time.Duration, model string) string {

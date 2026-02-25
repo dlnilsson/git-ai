@@ -14,4 +14,6 @@ type Options struct {
 
 type Backend interface {
 	Generate(ctx context.Context, reg *Registry, opts Options) (string, error)
+	Models() []string
+	DefaultModel() string
 }

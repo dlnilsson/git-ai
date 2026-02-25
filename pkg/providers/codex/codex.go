@@ -45,13 +45,7 @@ type codexUsage struct {
 	OutputTokens      int
 }
 
-func Models() []string {
-	return append([]string{}, models...)
-}
-
-func IsModelSupported(name string) bool {
-	return modelInList(name, models)
-}
+const defaultModel = "gpt-5-codex-mini"
 
 // https://developers.openai.com/codex/models/
 var models = []string{
@@ -113,20 +107,19 @@ func Generate(ctx context.Context, reg *providers.Registry, opts providers.Optio
 		NoCC:      opts.NoCC,
 	})
 
+	model := opts.Model
+	if strings.TrimSpace(model) == "" {
+		model = defaultModel
+	}
 	args = splitArgs(codexArgs)
 	args = addNoAltScreenArg(args)
-	if strings.TrimSpace(opts.Model) != "" {
-		args = addModelArg(args, opts.Model)
-	}
+	args = addModelArg(args, model)
 	cmd = exec.CommandContext(ctx, codexCmd, args...)
 	cmd.Stdin = strings.NewReader(prompt)
 	setProcessGroup(cmd)
 	startTime = time.Now()
 	if opts.ShowSpinner {
-		backendLabel := "codex"
-		if strings.TrimSpace(opts.Model) != "" {
-			backendLabel += " +" + opts.Model
-		}
+		backendLabel := "codex +" + model
 		stopSpinner = ui.StartSpinner(ui.RandomSpinnerMessage(), backendLabel, reg)
 		defer stopSpinner()
 	}
@@ -411,10 +404,6 @@ func addNoAltScreenArg(args []string) []string {
 		return out
 	}
 	return append(args, "--no-alt-screen")
-}
-
-func modelInList(name string, list []string) bool {
-	return slices.Contains(list, name)
 }
 
 func toInt(value any) int {

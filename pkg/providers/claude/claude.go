@@ -10,7 +10,6 @@ import (
 	"io"
 	"os"
 	"os/exec"
-	"slices"
 	"strings"
 	"time"
 
@@ -30,8 +29,7 @@ var allowedModels = []string{
 }
 
 func resolveModel(model string) string {
-	model = strings.TrimSpace(model)
-	if slices.Contains(allowedModels, model) {
+	if strings.TrimSpace(model) != "" {
 		return model
 	}
 	return defaultModel

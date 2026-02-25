@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/exec"
 	"os/signal"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -148,30 +149,29 @@ func main() {
 		model = rc.Model
 	}
 
-	if backend == "codex" {
-		models := codex.Models()
-		switch {
-		case strings.TrimSpace(model) != "":
-			model = strings.TrimSpace(model)
-			if !codex.IsModelSupported(model) {
-				fmt.Fprintf(os.Stderr, errInvalidModelFmt, model, strings.Join(models, ", "))
-				os.Exit(1)
-			}
-		case strings.TrimSpace(mFlag) == "":
-		case mFlag == menuSentinel:
-			selected, err := ui.SelectModelMenu(models)
-			if err != nil {
-				os.Exit(1)
-			}
-			model = selected
-		default:
-			candidate := strings.TrimSpace(mFlag)
-			if !codex.IsModelSupported(candidate) {
-				fmt.Fprintf(os.Stderr, errInvalidModelFmt, candidate, strings.Join(models, ", "))
-				os.Exit(1)
-			}
-			model = candidate
+	availableModels := b.Models()
+	switch {
+	case strings.TrimSpace(model) != "":
+		model = strings.TrimSpace(model)
+		if !slices.Contains(availableModels, model) {
+			fmt.Fprintf(os.Stderr, errInvalidModelFmt, model, strings.Join(availableModels, ", "))
+			os.Exit(1)
 		}
+	case strings.TrimSpace(mFlag) == "":
+		// No model specified — provider will use its default.
+	case mFlag == menuSentinel:
+		selected, err := ui.SelectModelMenu(availableModels)
+		if err != nil {
+			os.Exit(1)
+		}
+		model = selected
+	default:
+		candidate := strings.TrimSpace(mFlag)
+		if !slices.Contains(availableModels, candidate) {
+			fmt.Fprintf(os.Stderr, errInvalidModelFmt, candidate, strings.Join(availableModels, ", "))
+			os.Exit(1)
+		}
+		model = candidate
 	}
 
 	var registry providers.Registry

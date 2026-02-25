@@ -11,3 +11,6 @@ type Backend struct{}
 func (Backend) Generate(ctx context.Context, reg *providers.Registry, opts providers.Options) (string, error) {
 	return Generate(ctx, reg, opts)
 }
+
+func (Backend) Models() []string     { return append([]string{}, models...) }
+func (Backend) DefaultModel() string { return defaultModel }
