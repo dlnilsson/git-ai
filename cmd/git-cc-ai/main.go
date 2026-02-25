@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"flag"
 	"fmt"
 	"os"
@@ -169,8 +170,11 @@ func main() {
 	}
 
 	var registry providers.Registry
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
 	sigCh := make(chan os.Signal, 1)
 	signal.Notify(sigCh, os.Interrupt, syscall.SIGTERM)
+	defer signal.Stop(sigCh)
 	go func() {
 		for sig := range sigCh {
 			registry.ForwardSignal(sig)
@@ -193,7 +197,7 @@ func main() {
 		sessionID = rc.SessionID
 	}
 
-	message, err := b.Generate(&registry, providers.Options{
+	message, err := b.Generate(ctx, &registry, providers.Options{
 		SkillPath:   skillPath,
 		ExtraNote:   extraNote,
 		Model:       model,

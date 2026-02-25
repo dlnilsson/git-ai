@@ -2,6 +2,7 @@ package codex
 
 import (
 	"bufio"
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -62,7 +63,7 @@ var models = []string{
 	"gpt-5-codex-mini",
 }
 
-func Generate(reg *providers.Registry, opts providers.Options) (string, error) {
+func Generate(ctx context.Context, reg *providers.Registry, opts providers.Options) (string, error) {
 	const (
 		codexCmd  = "codex"
 		codexArgs = "exec --json"
@@ -76,7 +77,6 @@ func Generate(reg *providers.Registry, opts providers.Options) (string, error) {
 		lastError     string
 		output        string
 		reasoningText string
-		scanner       *bufio.Scanner
 		skillText     string
 		stderr        io.ReadCloser
 		stdout        io.ReadCloser
@@ -118,7 +118,7 @@ func Generate(reg *providers.Registry, opts providers.Options) (string, error) {
 	if strings.TrimSpace(opts.Model) != "" {
 		args = addModelArg(args, opts.Model)
 	}
-	cmd = exec.Command(codexCmd, args...)
+	cmd = exec.CommandContext(ctx, codexCmd, args...)
 	cmd.Stdin = strings.NewReader(prompt)
 	setProcessGroup(cmd)
 	startTime = time.Now()
@@ -147,45 +147,59 @@ func Generate(reg *providers.Registry, opts providers.Options) (string, error) {
 	var (
 		thread    threadTracker
 		stderrBuf strings.Builder
+		stderrWG  sync.WaitGroup
 	)
+	stderrWG.Add(1)
 	go func() {
-		sc := bufio.NewScanner(stderr)
-		for sc.Scan() {
-			line := sc.Text()
-			stderrBuf.WriteString(line)
-			stderrBuf.WriteByte('\n')
-			if id := parseThreadStartedJSON(line); id != "" {
-				thread.set(id)
+		defer stderrWG.Done()
+		reader := bufio.NewReader(io.TeeReader(stderr, &stderrBuf))
+		for {
+			line, readErr := reader.ReadString('\n')
+			line = strings.TrimRight(line, "\r\n")
+			if strings.TrimSpace(line) != "" {
+				if id := parseThreadStartedJSON(line); id != "" {
+					thread.set(id)
+				}
+			}
+			if errors.Is(readErr, io.EOF) {
+				break
+			}
+			if readErr != nil {
+				break
 			}
 		}
 	}()
 
-	scanner = bufio.NewScanner(stdout)
-	scanner.Buffer(make([]byte, 0, 1024*64), 1024*1024)
-	for scanner.Scan() {
-		line := scanner.Text()
-		buffer.WriteString(line)
-		buffer.WriteByte('\n')
-		if id := parseThreadStartedJSON(line); id != "" {
-			thread.set(id)
-		}
-		if opts.ShowSpinner {
-			reasoningText = parseReasoningJSON(line)
-			if strings.TrimSpace(reasoningText) != "" {
-				ui.SendSpinnerReasoning(reasoningText)
+	reader := bufio.NewReader(io.TeeReader(stdout, &buffer))
+	for {
+		line, readErr := reader.ReadString('\n')
+		line = strings.TrimRight(line, "\r\n")
+		if strings.TrimSpace(line) != "" {
+			if id := parseThreadStartedJSON(line); id != "" {
+				thread.set(id)
+			}
+			if opts.ShowSpinner {
+				reasoningText = parseReasoningJSON(line)
+				if strings.TrimSpace(reasoningText) != "" {
+					ui.SendSpinnerReasoning(reasoningText)
+				}
+			}
+			if updated, ok := parseUsageJSON(line); ok {
+				usage = updated
+			}
+			if errMsg := parseErrorJSON(line); errMsg != "" {
+				lastError = errMsg
 			}
 		}
-		if updated, ok := parseUsageJSON(line); ok {
-			usage = updated
+		if errors.Is(readErr, io.EOF) {
+			break
 		}
-		if errMsg := parseErrorJSON(line); errMsg != "" {
-			lastError = errMsg
+		if readErr != nil {
+			return "", readErr
 		}
-	}
-	if err = scanner.Err(); err != nil {
-		return "", err
 	}
 	if err = cmd.Wait(); err != nil {
+		stderrWG.Wait()
 		if lastError != "" {
 			return "", fmt.Errorf("codex invocation failed: %s", lastError)
 		}
@@ -194,6 +208,7 @@ func Generate(reg *providers.Registry, opts providers.Options) (string, error) {
 		}
 		return "", fmt.Errorf("codex invocation failed: %w", err)
 	}
+	stderrWG.Wait()
 	if reg.WasInterrupted() {
 		if id := thread.get(); id != "" {
 			fmt.Fprintln(os.Stderr, id)
