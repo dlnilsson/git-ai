@@ -2,7 +2,6 @@ package gemini
 
 import (
 	"bufio"
-	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -83,6 +82,7 @@ func Generate(ctx context.Context, reg *providers.Registry, opts providers.Optio
 	}
 
 	cmd := exec.CommandContext(ctx, "gemini", args...)
+	cmd.Env = append(cmd.Environ(), "NODE_NO_WARNINGS=1")
 	setProcessGroup(cmd)
 
 	startTime := time.Now()
@@ -97,8 +97,7 @@ func Generate(ctx context.Context, reg *providers.Registry, opts providers.Optio
 	if err != nil {
 		return "", err
 	}
-	var stderrBuf bytes.Buffer
-	cmd.Stderr = &stderrBuf
+	cmd.Stderr = io.Discard
 
 	if err = cmd.Start(); err != nil {
 		return "", fmt.Errorf("gemini invocation failed: %w", err)
@@ -154,9 +153,6 @@ func Generate(ctx context.Context, reg *providers.Registry, opts providers.Optio
 	if err = cmd.Wait(); err != nil {
 		if reg.WasInterrupted() {
 			return "", errors.New("gemini invocation interrupted")
-		}
-		if stderrBuf.Len() > 0 {
-			return "", fmt.Errorf("gemini invocation failed: %w\n%s", err, strings.TrimSpace(stderrBuf.String()))
 		}
 		return "", fmt.Errorf("gemini invocation failed: %w", err)
 	}
