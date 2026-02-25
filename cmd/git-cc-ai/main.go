@@ -142,10 +142,14 @@ func main() {
 		os.Exit(1)
 	}
 
-	if envModel := strings.TrimSpace(os.Getenv("GIT_AI_MODEL")); envModel != "" && strings.TrimSpace(model) == "" && strings.TrimSpace(mFlag) == "" {
+	// --model flag is explicit user intent — validate strictly.
+	// GIT_AI_MODEL / .agentrc is a soft preference — silently fall back to
+	// the provider default when the model doesn't match.
+	modelFromFlag := strings.TrimSpace(model) != "" || strings.TrimSpace(mFlag) != ""
+	if envModel := strings.TrimSpace(os.Getenv("GIT_AI_MODEL")); envModel != "" && !modelFromFlag {
 		model = envModel
 	}
-	if rc.Model != "" && strings.TrimSpace(model) == "" && strings.TrimSpace(mFlag) == "" {
+	if rc.Model != "" && strings.TrimSpace(model) == "" && !modelFromFlag {
 		model = rc.Model
 	}
 
@@ -154,8 +158,11 @@ func main() {
 	case strings.TrimSpace(model) != "":
 		model = strings.TrimSpace(model)
 		if !slices.Contains(availableModels, model) {
-			fmt.Fprintf(os.Stderr, errInvalidModelFmt, model, strings.Join(availableModels, ", "))
-			os.Exit(1)
+			if modelFromFlag {
+				fmt.Fprintf(os.Stderr, errInvalidModelFmt, model, strings.Join(availableModels, ", "))
+				os.Exit(1)
+			}
+			model = ""
 		}
 	case strings.TrimSpace(mFlag) == "":
 		// No model specified — provider will use its default.
