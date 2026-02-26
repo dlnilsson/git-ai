@@ -2,12 +2,13 @@
 
 [![asciicast](https://asciinema.org/a/uHPdXi9wsZ23xQ42.svg)](https://asciinema.org/a/uHPdXi9wsZ23xQ42)
 
-Generates conventional commit messages from your staged changes using Claude or Codex. Use the generated message with `git commit` (e.g. via the `git-ai` script) and optionally edit it in your editor before committing.
+Generates conventional commit messages from your staged changes using Claude, Gemini, or Codex.
+Use the generated message with `git commit` (e.g. via the `git-ai` script) and optionally edit it in your editor before committing.
 
 ## Requirements
 
 - **Go** — to build the binary
-- **Claude** or **Codex** — installed and on your `PATH`
+- **Claude**, **Gemini**, or **Codex** — installed and on your `PATH`
 
 ## Install
 
@@ -47,15 +48,16 @@ Expected output:
 
 ## Backends
 
-The backend is auto-detected from your `PATH` (Claude preferred). Override with `GIT_AI_BACKEND`:
+The backend is auto-detected from your `PATH` (Claude preferred, then Gemini, then Codex). Override with `GIT_AI_BACKEND`:
 
 | Value    | Provider             |
 | -------- | -------------------- |
 | `claude` | Anthropic Claude CLI |
+| `gemini` | Google Gemini CLI    |
 | `codex`  | OpenAI Codex CLI     |
 
 ```bash
-# Auto-detect (claude preferred, falls back to codex)
+# Auto-detect (claude preferred, then gemini, then codex)
 git ai
 
 # Force a specific backend
