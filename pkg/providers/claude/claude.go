@@ -19,8 +19,10 @@ import (
 	"github.com/dlnilsson/git-cc-ai/pkg/ui"
 )
 
-const defaultBudgetUSD = 1.0
-const defaultModel = "claude-haiku-4-5-20251001"
+const (
+	defaultBudgetUSD = 1.0
+	defaultModel     = "claude-haiku-4-5-20251001"
+)
 
 var allowedModels = []string{
 	"claude-haiku-4-5-20251001",
@@ -49,6 +51,7 @@ func Generate(ctx context.Context, reg *providers.Registry, opts providers.Optio
 		skillText = commit.StandardCommitRule
 	}
 	skillText = skillText + "\n\n" + "Dont sign commit messages with claude code!"
+	skillText = skillText + "\n\n" + "Do not ask any follow up questions, commit message only."
 	if opts.SkillPath != "" {
 		if data, readErr := os.ReadFile(opts.SkillPath); readErr == nil {
 			trimmed := strings.TrimSpace(string(data))
