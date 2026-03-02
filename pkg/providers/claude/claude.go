@@ -96,7 +96,7 @@ func Generate(ctx context.Context, reg *providers.Registry, opts providers.Optio
 	startTime := time.Now()
 	var stopSpinner func()
 	if opts.ShowSpinner {
-		stopSpinner = ui.StartSpinner(ui.RandomSpinnerMessage(), "claude +"+model, reg)
+		stopSpinner = ui.StartSpinner(ui.RandomSpinnerMessage(!opts.NoCC), "claude +"+model, reg)
 		defer stopSpinner()
 		if opts.SessionID != "" {
 			ui.SendSpinnerReasoning("Resuming session " + opts.SessionID)

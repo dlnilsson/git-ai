@@ -79,7 +79,7 @@ func Generate(ctx context.Context, reg *providers.Registry, opts providers.Optio
 	var stopSpinner func()
 	if opts.ShowSpinner {
 		backendLabel := "gemini +" + model
-		stopSpinner = ui.StartSpinner(ui.RandomSpinnerMessage(), backendLabel, reg)
+		stopSpinner = ui.StartSpinner(ui.RandomSpinnerMessage(!opts.NoCC), backendLabel, reg)
 		defer stopSpinner()
 	}
 

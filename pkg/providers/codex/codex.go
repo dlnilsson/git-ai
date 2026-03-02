@@ -120,7 +120,7 @@ func Generate(ctx context.Context, reg *providers.Registry, opts providers.Optio
 	startTime = time.Now()
 	if opts.ShowSpinner {
 		backendLabel := "codex +" + model
-		stopSpinner = ui.StartSpinner(ui.RandomSpinnerMessage(), backendLabel, reg)
+		stopSpinner = ui.StartSpinner(ui.RandomSpinnerMessage(!opts.NoCC), backendLabel, reg)
 		defer stopSpinner()
 	}
 	stdout, err = cmd.StdoutPipe()

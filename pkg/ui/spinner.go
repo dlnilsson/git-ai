@@ -43,11 +43,13 @@ type spinnerHandle struct {
 var spinnerMessages = []string{
 	"Generating commit message...",
 	"Summarizing staged changes...",
-	"Drafting Conventional Commit...",
 	"Giving birth to skynet",
 	"Analyzing diff hunks...",
 	"Composing commit summary...",
-	"Buying Sam Altman a new ferrari...",
+}
+
+var ccSpinnerMessages = []string{
+	"Drafting Conventional Commit...",
 }
 
 var spinnerStyles = []spinner.Spinner{
@@ -137,12 +139,16 @@ func SendSpinnerReasoning(text string) {
 	}
 }
 
-func RandomSpinnerMessage() string {
-	if len(spinnerMessages) == 0 {
-		return "Generating commit message with Codex..."
+func RandomSpinnerMessage(conventionalCommit bool) string {
+	msgs := spinnerMessages
+	if conventionalCommit {
+		msgs = append(msgs, ccSpinnerMessages...)
+	}
+	if len(msgs) == 0 {
+		return "Generating commit message..."
 	}
 	seed := time.Now().UnixNano()
-	return spinnerMessages[int(seed%int64(len(spinnerMessages)))]
+	return msgs[int(seed%int64(len(msgs)))]
 }
 
 func newSpinnerModel(message string, backend string, forwarder SignalForwarder) spinnerModel {
