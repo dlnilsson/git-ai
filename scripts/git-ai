@@ -5,9 +5,6 @@ tmp=$(mktemp)
 trap 'rm -f "$tmp"' EXIT
 
 git_ai_cmd=(git-cc-ai "$@")
-if [[ -n "${GIT_AI_BACKEND:-}" ]]; then
-  git_ai_cmd=(env "GIT_AI_BACKEND=$GIT_AI_BACKEND" git-cc-ai "$@")
-fi
 
 msg=$("${git_ai_cmd[@]}" 2> "$tmp") || { cat "$tmp" >&2; exit 1; }
 cat "$tmp" >&2
