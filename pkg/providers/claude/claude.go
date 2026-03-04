@@ -83,6 +83,8 @@ func Generate(ctx context.Context, reg *providers.Registry, opts providers.Optio
 		"--disable-slash-commands",
 		"--model", model,
 		"--system-prompt", systemPrompt,
+		"--setting-sources", "",
+		"--tools", "",
 		"--input-format=stream-json",
 		"--output-format=stream-json", "--verbose", "--include-partial-messages",
 		"--no-session-persistence",
