@@ -78,25 +78,6 @@ func Generate(ctx context.Context, reg *providers.Registry, opts providers.Optio
 	}
 	model := resolveModel(opts.Model)
 
-	args := []string{
-		"--print",
-		"--disable-slash-commands",
-		"--model", model,
-		"--system-prompt", systemPrompt,
-		"--setting-sources", "",
-		"--tools", "",
-		"--input-format=stream-json",
-		"--output-format=stream-json", "--verbose", "--include-partial-messages",
-		"--no-session-persistence",
-		"--max-budget-usd", fmt.Sprintf("%g", budgetUSD),
-	}
-	if opts.SessionID != "" {
-		args = append([]string{"--resume=" + opts.SessionID, "--fork-session"}, args...)
-	}
-	cmd := exec.CommandContext(ctx, "claude", args...)
-	cmd.Stdin = bytes.NewReader(stdinPayload)
-	setProcessGroup(cmd)
-
 	startTime := time.Now()
 	var stopSpinner func()
 	if opts.ShowSpinner {
@@ -107,76 +88,112 @@ func Generate(ctx context.Context, reg *providers.Registry, opts providers.Optio
 		}
 	}
 
-	stdout, err := cmd.StdoutPipe()
-	if err != nil {
-		return "", err
-	}
-	cmd.Stderr = os.Stderr
+	sessionID := opts.SessionID
+	for attempt := 0; attempt < 2; attempt++ {
+		args := []string{
+			"--print",
+			"--disable-slash-commands",
+			"--model", model,
+			"--system-prompt", systemPrompt,
+			"--setting-sources", "",
+			"--tools", "",
+			"--input-format=stream-json",
+			"--output-format=stream-json", "--verbose", "--include-partial-messages",
+			"--no-session-persistence",
+			"--max-budget-usd", fmt.Sprintf("%g", budgetUSD),
+		}
+		if sessionID != "" {
+			args = append([]string{"--resume=" + sessionID, "--fork-session"}, args...)
+		}
+		cmd := exec.CommandContext(ctx, "claude", args...)
+		cmd.Stdin = bytes.NewReader(stdinPayload)
+		setProcessGroup(cmd)
 
-	if err = cmd.Start(); err != nil {
-		return "", fmt.Errorf("%w\n# %s", err, cmdString(cmd, fmt.Sprintf("%d dir chunk(s)", len(chunks))))
-	}
-	reg.Register(cmd, stopSpinner)
-	defer reg.Unregister()
+		stdout, err := cmd.StdoutPipe()
+		if err != nil {
+			return "", err
+		}
+		cmd.Stderr = os.Stderr
 
-	var (
-		result        claudeResult
-		lastAssistant string
-		deltaAccum    strings.Builder
-		buffer        strings.Builder
-	)
-	reader := bufio.NewReader(io.TeeReader(stdout, &buffer))
-	for {
-		line, readErr := reader.ReadString('\n')
-		line = strings.TrimRight(line, "\r\n")
-		if strings.TrimSpace(line) != "" {
-			if opts.ShowSpinner {
-				if delta := parseTextDelta(line); delta != "" {
-					deltaAccum.WriteString(delta)
-					ui.SendSpinnerReasoning(strings.TrimSpace(deltaAccum.String()))
-				} else if text := parseStreamReasoning(line); text != "" {
-					deltaAccum.Reset()
-					ui.SendSpinnerReasoning(text)
+		if err = cmd.Start(); err != nil {
+			return "", fmt.Errorf("%w\n# %s", err, cmdString(cmd, fmt.Sprintf("%d dir chunk(s)", len(chunks))))
+		}
+		reg.Register(cmd, stopSpinner)
+
+		var (
+			result        claudeResult
+			lastAssistant string
+			deltaAccum    strings.Builder
+			buffer        strings.Builder
+		)
+		reader := bufio.NewReader(io.TeeReader(stdout, &buffer))
+		for {
+			line, readErr := reader.ReadString('\n')
+			line = strings.TrimRight(line, "\r\n")
+			if strings.TrimSpace(line) != "" {
+				if opts.ShowSpinner {
+					if delta := parseTextDelta(line); delta != "" {
+						deltaAccum.WriteString(delta)
+						ui.SendSpinnerReasoning(strings.TrimSpace(deltaAccum.String()))
+					} else if text := parseStreamReasoning(line); text != "" {
+						deltaAccum.Reset()
+						ui.SendSpinnerReasoning(text)
+					}
+				}
+
+				if text := parseAssistantText(line); text != "" {
+					lastAssistant = text
+				}
+				if r, ok := parseResultEvent(line); ok {
+					result = r
 				}
 			}
-
-			if text := parseAssistantText(line); text != "" {
-				lastAssistant = text
+			if errors.Is(readErr, io.EOF) {
+				break
 			}
-			if r, ok := parseResultEvent(line); ok {
-				result = r
+			if readErr != nil {
+				reg.Unregister()
+				return "", readErr
 			}
 		}
-		if errors.Is(readErr, io.EOF) {
-			break
+		if err = cmd.Wait(); err != nil {
+			reg.Unregister()
+			if reg.WasInterrupted() {
+				return "", errors.New("claude invocation interrupted")
+			}
+			return "", fmt.Errorf("claude invocation failed\n# %s", cmdString(cmd, fmt.Sprintf("%d dir chunk(s)", len(chunks))))
 		}
-		if readErr != nil {
-			return "", readErr
+		reg.Unregister()
+
+		// Retry without session if the session was not found.
+		if attempt == 0 && sessionID != "" && isSessionNotFoundError(result) {
+			sessionID = ""
+			if opts.ShowSpinner {
+				ui.SendSpinnerReasoning("Session not found, retrying without session")
+			}
+			fmt.Fprintf(os.Stderr, "claude: session %s not found, retrying without session\n", opts.SessionID)
+			continue
 		}
-	}
-	if err = cmd.Wait(); err != nil {
-		if reg.WasInterrupted() {
-			return "", errors.New("claude invocation interrupted")
+
+		responseText := result.Result
+		if responseText == "" && strings.HasPrefix(result.Subtype, "error_") {
+			fmt.Fprintf(os.Stderr, "claude: %s\n", result.Subtype)
+			responseText = lastAssistant
 		}
-		return "", fmt.Errorf("claude invocation failed\n# %s", cmdString(cmd, fmt.Sprintf("%d dir chunk(s)", len(chunks))))
+
+		text := commit.StripCodeFence(strings.TrimSpace(responseText))
+		if text == "" {
+			if result.Subtype != "" {
+				return "", fmt.Errorf("claude: %s", result.Subtype)
+			}
+			return "", errors.New("claude returned empty response")
+		}
+
+		msg := commit.WrapMessage(text, commit.BodyLineWidth)
+		return appendUsageComment(msg, result, time.Since(startTime), budgetUSD), nil
 	}
 
-	responseText := result.Result
-	if responseText == "" && strings.HasPrefix(result.Subtype, "error_") {
-		fmt.Fprintf(os.Stderr, "claude: %s\n", result.Subtype)
-		responseText = lastAssistant
-	}
-
-	text := commit.StripCodeFence(strings.TrimSpace(responseText))
-	if text == "" {
-		if result.Subtype != "" {
-			return "", fmt.Errorf("claude: %s", result.Subtype)
-		}
-		return "", errors.New("claude returned empty response")
-	}
-
-	msg := commit.WrapMessage(text, commit.BodyLineWidth)
-	return appendUsageComment(msg, result, time.Since(startTime), budgetUSD), nil
+	return "", errors.New("claude: exhausted retry attempts")
 }
 
 // parseStreamReasoning extracts displayable reasoning text from assistant
@@ -314,8 +331,23 @@ type claudeResult struct {
 	IsError      bool                        `json:"is_error"`
 	NumTurns     int                         `json:"num_turns"`
 	SessionID    string                      `json:"session_id"`
+	Errors       []string                    `json:"errors"`
 	Usage        claudeUsage                 `json:"usage"`
 	ModelUsage   map[string]claudeModelUsage `json:"modelUsage"`
+}
+
+// isSessionNotFoundError returns true when the result indicates the
+// requested session ID does not exist on the server.
+func isSessionNotFoundError(r claudeResult) bool {
+	if !r.IsError {
+		return false
+	}
+	for _, e := range r.Errors {
+		if strings.Contains(e, "No conversation found with session ID") {
+			return true
+		}
+	}
+	return false
 }
 
 type claudeUsage struct {
