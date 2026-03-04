@@ -51,6 +51,7 @@ func Generate(ctx context.Context, reg *providers.Registry, opts providers.Optio
 		skillText = commit.StandardCommitRule
 	}
 	skillText = skillText + "\n\n" + "Dont sign commit messages with claude code!"
+	skillText = skillText + "\n\n" + "Do NOT append Co-Authored-By: Claude"
 	skillText = skillText + "\n\n" + "Do not ask any follow up questions, commit message only."
 	if opts.SkillPath != "" {
 		if data, readErr := os.ReadFile(opts.SkillPath); readErr == nil {
@@ -79,6 +80,7 @@ func Generate(ctx context.Context, reg *providers.Registry, opts providers.Optio
 
 	args := []string{
 		"--print",
+		"--disable-slash-commands",
 		"--model", model,
 		"--system-prompt", systemPrompt,
 		"--input-format=stream-json",
