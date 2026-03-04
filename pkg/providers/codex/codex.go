@@ -60,7 +60,7 @@ var models = []string{
 func Generate(ctx context.Context, reg *providers.Registry, opts providers.Options) (string, error) {
 	const (
 		codexCmd  = "codex"
-		codexArgs = "exec --json"
+		codexArgs = "exec --json -c model_reasoning_effort='low' --sandbox=read-only"
 	)
 	var (
 		args          []string
