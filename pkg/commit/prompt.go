@@ -24,6 +24,7 @@ func BuildSystemPrompt(opts PromptOptions) string {
 	b.WriteString("Limit each line in the commit body to 72 characters; wrap at sentence boundaries (e.g. after a period and space) when possible so lines do not break mid-sentence.\n\n")
 	b.WriteString("Instructions:\n")
 	b.WriteString(opts.SkillText)
+	b.WriteString(CommitGuidelines)
 	return b.String()
 }
 
@@ -56,7 +57,8 @@ func BuildConventionalPrompt(opts PromptOptions) string {
 	prompt.WriteString("Limit each line in the commit body to 72 characters; wrap at sentence boundaries (e.g. after a period and space) when possible so lines do not break mid-sentence.\n\n")
 	prompt.WriteString("Instructions:\n")
 	prompt.WriteString(opts.SkillText)
-	prompt.WriteString("\n\n")
+	prompt.WriteString(CommitGuidelines)
+	prompt.WriteString("\n")
 	prompt.WriteString("Staged diff:\n")
 	prompt.WriteString(opts.Diff)
 	prompt.WriteString("\n")

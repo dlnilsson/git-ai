@@ -65,6 +65,10 @@ Follow good Git style:
 - Keep the body short and concise (omit it entirely if not useful)
 `
 
+const CommitGuidelines = `
+Focus on INTENT (why the change was made) over implementation (what was changed).
+`
+
 const BodyLineWidth = 72
 
 // StripCodeFence removes markdown code fences (```...```) that LLMs

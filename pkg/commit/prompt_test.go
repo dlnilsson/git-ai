@@ -14,7 +14,7 @@ func TestBuildConventionalPrompt(t *testing.T) {
 		ExtraNote: "  this is context  ",
 	})
 
-	if !strings.Contains(out, "Instructions:\nrules\n\nStaged diff:\ndiff --git a b\n") {
+	if !strings.Contains(out, "Instructions:\nrules"+CommitGuidelines+"\nStaged diff:\ndiff --git a b\n") {
 		t.Fatalf("prompt missing required sections: %q", out)
 	}
 	if !strings.Contains(out, "\nExtra context:\nthis is context\n") {
