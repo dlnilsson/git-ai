@@ -41,6 +41,17 @@ func checkGitDir() error {
 	return nil
 }
 
+// topLevel returns the absolute path of the repository root.
+func topLevel() (string, error) {
+	cmd := gitCmd("rev-parse", "--show-toplevel")
+	cmd.Stderr = io.Discard
+	out, err := cmd.Output()
+	if err != nil {
+		return "", ErrNotGitDir
+	}
+	return strings.TrimSpace(string(out)), nil
+}
+
 // DiffStaged returns the full staged diff, falling back to --stat when the
 // diff exceeds maxDiffBytes. Used by the codex backend.
 func DiffStaged() (string, error) {
@@ -69,12 +80,14 @@ func DiffStaged() (string, error) {
 // at maxChunkBytes (falls back to --stat for that directory if exceeded).
 // Used by the claude backend to send one stream-json message per directory.
 func DiffStagedChunks() ([]DiffChunk, error) {
-	if err := checkGitDir(); err != nil {
+	root, err := topLevel()
+	if err != nil {
 		return nil, err
 	}
 
-	// Collect changed file paths.
+	// Collect changed file paths (relative to repo root).
 	namesCmd := gitCmd("diff", "--staged", "--name-only")
+	namesCmd.Dir = root
 	namesCmd.Stderr = io.Discard
 	namesOut, err := namesCmd.Output()
 	if err != nil {
@@ -103,6 +116,7 @@ func DiffStagedChunks() ([]DiffChunk, error) {
 	chunks := make([]DiffChunk, 0, len(dirs))
 	for _, dir := range dirs {
 		diffCmd := gitCmd("diff", "--staged", "--", dir)
+		diffCmd.Dir = root
 		diffCmd.Stderr = io.Discard
 		diffOut, diffErr := diffCmd.Output()
 		if diffErr != nil {
@@ -111,6 +125,7 @@ func DiffStagedChunks() ([]DiffChunk, error) {
 		content := string(diffOut)
 		if len(diffOut) > maxChunkBytes {
 			statCmd := gitCmd("diff", "--staged", "--stat", "--", dir)
+			statCmd.Dir = root
 			statCmd.Stderr = io.Discard
 			statOut, statErr := statCmd.Output()
 			if statErr != nil {
