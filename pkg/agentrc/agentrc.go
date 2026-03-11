@@ -2,8 +2,11 @@ package agentrc
 
 import (
 	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
+
+	"github.com/dlnilsson/git-cc-ai/pkg/git"
 )
 
 // Config holds values parsed from a .agentrc file.
@@ -14,6 +17,26 @@ type Config struct {
 	NoCC      bool
 	NoSession bool
 	Budget    float64 // GIT_AI_BUDGET — max spend in USD (0 means unset)
+}
+
+// FindAndLoad looks for .agentrc first in the current worktree root, then
+// falls back to the main repository root. Returns a zero Config if neither
+// location has a .agentrc or if the working directory is not inside a git
+// repository.
+func FindAndLoad() Config {
+	// Try the current worktree root first.
+	if root, err := git.TopLevel(); err == nil {
+		if cfg := Load(filepath.Join(root, ".agentrc")); cfg != (Config{}) {
+			return cfg
+		}
+	}
+
+	// Fall back to the main repository root (parent of the shared .git dir).
+	if root, err := git.CommonRoot(); err == nil {
+		return Load(filepath.Join(root, ".agentrc"))
+	}
+
+	return Config{}
 }
 
 // Load reads a .agentrc file and returns its parsed configuration.

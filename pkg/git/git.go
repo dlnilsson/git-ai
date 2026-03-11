@@ -6,6 +6,7 @@ import (
 	"io"
 	"os/exec"
 	"path"
+	"path/filepath"
 	"sort"
 	"strings"
 )
@@ -41,8 +42,8 @@ func checkGitDir() error {
 	return nil
 }
 
-// topLevel returns the absolute path of the repository root.
-func topLevel() (string, error) {
+// TopLevel returns the absolute path of the current worktree root.
+func TopLevel() (string, error) {
 	cmd := gitCmd("rev-parse", "--show-toplevel")
 	cmd.Stderr = io.Discard
 	out, err := cmd.Output()
@@ -50,6 +51,19 @@ func topLevel() (string, error) {
 		return "", ErrNotGitDir
 	}
 	return strings.TrimSpace(string(out)), nil
+}
+
+// CommonRoot returns the absolute path of the main repository root by
+// resolving the shared .git directory. In a worktree this points to the
+// original checkout; in a regular repo it equals TopLevel.
+func CommonRoot() (string, error) {
+	cmd := gitCmd("rev-parse", "--path-format=absolute", "--git-common-dir")
+	cmd.Stderr = io.Discard
+	out, err := cmd.Output()
+	if err != nil {
+		return "", ErrNotGitDir
+	}
+	return filepath.Dir(strings.TrimSpace(string(out))), nil
 }
 
 // DiffStaged returns the full staged diff, falling back to --stat when the
@@ -80,7 +94,7 @@ func DiffStaged() (string, error) {
 // at maxChunkBytes (falls back to --stat for that directory if exceeded).
 // Used by the claude backend to send one stream-json message per directory.
 func DiffStagedChunks() ([]DiffChunk, error) {
-	root, err := topLevel()
+	root, err := TopLevel()
 	if err != nil {
 		return nil, err
 	}

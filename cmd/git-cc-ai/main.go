@@ -116,7 +116,7 @@ func main() {
 		extraNote = strings.Join(flag.Args(), " ")
 	}
 
-	rc := agentrc.Load(".agentrc")
+	rc := agentrc.FindAndLoad()
 
 	backends := map[string]providers.Backend{
 		"codex":  codex.Backend{},
