@@ -77,6 +77,25 @@ func Generate(ctx context.Context, reg *providers.Registry, opts providers.Optio
 		budgetUSD = defaultBudgetUSD
 	}
 	model := resolveModel(opts.Model)
+	baseArgs := []string{
+		"--print",
+		"--disable-slash-commands",
+		"--model", model,
+		"--system-prompt", systemPrompt,
+		"--setting-sources", "",
+		"--tools", "",
+		"--input-format=stream-json",
+		"--output-format=stream-json", "--verbose", "--include-partial-messages",
+		"--no-session-persistence",
+		"--max-budget-usd", fmt.Sprintf("%g", budgetUSD),
+	}
+	dryRunArgs := append([]string{}, baseArgs...)
+	if strings.TrimSpace(opts.SessionID) != "" {
+		dryRunArgs = append([]string{"--resume=" + opts.SessionID, "--fork-session"}, dryRunArgs...)
+	}
+	if opts.DryRun {
+		return providers.FormatCommandWithStdin(string(stdinPayload), "claude", dryRunArgs), nil
+	}
 
 	startTime := time.Now()
 	var stopSpinner func()
@@ -90,18 +109,7 @@ func Generate(ctx context.Context, reg *providers.Registry, opts providers.Optio
 
 	sessionID := opts.SessionID
 	for attempt := 0; attempt < 2; attempt++ {
-		args := []string{
-			"--print",
-			"--disable-slash-commands",
-			"--model", model,
-			"--system-prompt", systemPrompt,
-			"--setting-sources", "",
-			"--tools", "",
-			"--input-format=stream-json",
-			"--output-format=stream-json", "--verbose", "--include-partial-messages",
-			"--no-session-persistence",
-			"--max-budget-usd", fmt.Sprintf("%g", budgetUSD),
-		}
+		args := append([]string{}, baseArgs...)
 		if sessionID != "" {
 			args = append([]string{"--resume=" + sessionID, "--fork-session"}, args...)
 		}
@@ -436,7 +444,7 @@ func cmdString(cmd *exec.Cmd, stdinText string) string {
 		s = s[:maxStdin]
 		suffix = "..."
 	}
-	return cmd.String() + "\n# stdin: " + s + suffix
+	return providers.FormatCommand(cmd.Path, cmd.Args[1:]) + "\n# stdin: " + s + suffix
 }
 
 func appendUsageComment(message string, cr claudeResult, elapsed time.Duration, budgetUSD float64) string {

@@ -87,11 +87,19 @@ func execInPath(name string) bool {
 	return err == nil
 }
 
+func sessionIDForBackend(backend string, noSession bool, rc agentrc.Config) string {
+	if noSession || backend != "claude" {
+		return ""
+	}
+	return rc.SessionID
+}
+
 func main() {
 	var (
 		mFlag     string
 		model     string
 		noSpinner bool
+		dryRun    bool
 		skillPath string
 		extraNote string
 	)
@@ -99,6 +107,7 @@ func main() {
 	injectBareM()
 	flag.StringVar(&skillPath, "skill-path", "", "path to SKILL.md (optional, used for prompt)")
 	flag.BoolVar(&noSpinner, "no-spinner", false, "disable spinner while the backend runs")
+	flag.BoolVar(&dryRun, "dry-run", false, "print the backend command and exit")
 	flag.StringVar(&model, "model", "", "model name (overrides -m)")
 	flag.StringVar(&mFlag, "m", "", "model name, or no value for interactive selection")
 	flag.Usage = printHelp
@@ -204,10 +213,7 @@ func main() {
 		budget = rc.Budget
 	}
 
-	var sessionID string
-	if !noSession {
-		sessionID = rc.SessionID
-	}
+	sessionID := sessionIDForBackend(backend, noSession, rc)
 
 	message, err := b.Generate(ctx, &registry, providers.Options{
 		SkillPath:   skillPath,
@@ -216,6 +222,7 @@ func main() {
 		SessionID:   sessionID,
 		ShowSpinner: !noSpinner,
 		NoCC:        noCC,
+		DryRun:      dryRun,
 		Budget:      budget,
 	})
 	if err != nil {

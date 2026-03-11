@@ -62,6 +62,9 @@ git ai
 
 # Force a specific backend
 GIT_AI_BACKEND=codex git ai
+
+# Print the exact backend command without executing it
+git ai --dry-run
 ```
 
 PowerShell backend override:

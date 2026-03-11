@@ -9,6 +9,7 @@ type Options struct {
 	SessionID   string
 	ShowSpinner bool
 	NoCC        bool
+	DryRun      bool
 	Budget      float64 // max spend in USD; 0 means use backend default
 }
 

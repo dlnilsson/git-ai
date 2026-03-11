@@ -114,6 +114,9 @@ func Generate(ctx context.Context, reg *providers.Registry, opts providers.Optio
 	args = splitArgs(codexArgs)
 	args = addNoAltScreenArg(args)
 	args = addModelArg(args, model)
+	if opts.DryRun {
+		return providers.FormatCommandWithStdin(prompt, codexCmd, args), nil
+	}
 	cmd = exec.CommandContext(ctx, codexCmd, args...)
 	cmd.Stdin = strings.NewReader(prompt)
 	setProcessGroup(cmd)

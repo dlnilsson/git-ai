@@ -32,6 +32,14 @@ func resolveModel(model string) string {
 	return defaultModel
 }
 
+func buildArgs(prompt string, model string) []string {
+	return []string{
+		"--prompt", prompt,
+		"--output-format", "stream-json",
+		"--model", model,
+	}
+}
+
 func Generate(ctx context.Context, reg *providers.Registry, opts providers.Options) (string, error) {
 	diff, err := git.DiffStaged()
 	if err != nil {
@@ -62,13 +70,9 @@ func Generate(ctx context.Context, reg *providers.Registry, opts providers.Optio
 	})
 	model := resolveModel(opts.Model)
 
-	args := []string{
-		"--prompt", prompt,
-		"--output-format", "stream-json",
-	}
-	args = append(args, "--model", model)
-	if strings.TrimSpace(opts.SessionID) != "" {
-		args = append(args, "--resume", opts.SessionID)
+	args := buildArgs(prompt, model)
+	if opts.DryRun {
+		return providers.FormatCommand("gemini", args), nil
 	}
 
 	cmd := exec.CommandContext(ctx, "gemini", args...)
