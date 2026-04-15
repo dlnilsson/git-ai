@@ -229,6 +229,9 @@ func appendUsageComment(message string, sessionID string, stats geminiStats, ela
 
 	var b strings.Builder
 	b.WriteString(message)
+
+	b.WriteString(providers.AssistedByTrailer("Gemini", model))
+
 	b.WriteString("\n\n# tokens: input=")
 	b.WriteString(fmt.Sprint(stats.InputTokens))
 	b.WriteString(" output=")
