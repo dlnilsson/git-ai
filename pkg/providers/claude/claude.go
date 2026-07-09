@@ -456,6 +456,14 @@ func appendUsageComment(message string, cr claudeResult, elapsed time.Duration, 
 
 	var b strings.Builder
 	b.WriteString(message)
+
+	var model string
+	for m := range cr.ModelUsage {
+		model = m
+		break
+	}
+	b.WriteString(providers.AssistedByTrailer("Claude", model))
+
 	b.WriteString("\n\n# cost=$")
 	b.WriteString(fmt.Sprintf("%.4f", cr.TotalCostUSD))
 	b.WriteString(" elapsed=")

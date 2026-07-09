@@ -359,7 +359,11 @@ func appendUsageComment(message string, usage codexUsage, elapsed time.Duration,
 		return message
 	}
 	elapsedText := elapsed.Round(100 * time.Millisecond)
-	comment := message + "\n\n# tokens: input=" + fmt.Sprint(usage.InputTokens) +
+
+	var b strings.Builder
+	b.WriteString(message)
+	b.WriteString(providers.AssistedByTrailer("Codex", strings.TrimSpace(model)))
+	comment := b.String() + "\n\n# tokens: input=" + fmt.Sprint(usage.InputTokens) +
 		" cached=" + fmt.Sprint(usage.CachedInputTokens) +
 		" output=" + fmt.Sprint(usage.OutputTokens) +
 		" elapsed=" + elapsedText.String()
