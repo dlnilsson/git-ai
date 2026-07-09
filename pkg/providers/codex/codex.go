@@ -45,16 +45,13 @@ type codexUsage struct {
 	OutputTokens      int
 }
 
-const defaultModel = "gpt-5-codex-mini"
+const defaultModel = "gpt-5.4"
 
 // https://developers.openai.com/codex/models/
 var models = []string{
-	"gpt-5.1-codex-max",
-	"gpt-5.1-codex-mini",
-	"gpt-5.2-codex",
-	"gpt-5.3-codex",
-	"gpt-5.3-codex-spark",
-	"gpt-5-codex-mini",
+	" gpt-5.5",
+	"gpt-5.4",
+	"gpt-5.4-mini",
 }
 
 func Generate(ctx context.Context, reg *providers.Registry, opts providers.Options) (string, error) {
