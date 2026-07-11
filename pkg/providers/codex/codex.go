@@ -216,17 +216,17 @@ func Generate(ctx context.Context, reg *providers.Registry, opts providers.Optio
 
 	if parsed := parseCodexJSON(output); strings.TrimSpace(parsed) != "" {
 		text := commit.StripCodeFence(strings.TrimSpace(parsed))
-		return appendUsageComment(commit.WrapMessage(text, commit.BodyLineWidth), usage, time.Since(startTime), opts.Model), nil
+		return appendUsageComment(commit.WrapMessage(text, commit.BodyLineWidth), usage, time.Since(startTime), model), nil
 	}
 
 	if strings.HasPrefix(output, "{") {
 		if extracted := extractJSONField(output, []string{"output", "stdout", "result", "message"}); strings.TrimSpace(extracted) != "" {
 			text := commit.StripCodeFence(strings.TrimSpace(extracted))
-			return appendUsageComment(commit.WrapMessage(text, commit.BodyLineWidth), usage, time.Since(startTime), opts.Model), nil
+			return appendUsageComment(commit.WrapMessage(text, commit.BodyLineWidth), usage, time.Since(startTime), model), nil
 		}
 	}
 
-	return appendUsageComment(commit.WrapMessage(commit.StripCodeFence(output), commit.BodyLineWidth), usage, time.Since(startTime), opts.Model), nil
+	return appendUsageComment(commit.WrapMessage(commit.StripCodeFence(output), commit.BodyLineWidth), usage, time.Since(startTime), model), nil
 }
 
 func parseErrorJSON(raw string) string {
