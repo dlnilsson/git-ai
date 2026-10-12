@@ -21,13 +21,15 @@ import (
 
 const (
 	defaultBudgetUSD = 1.0
-	defaultModel     = "claude-haiku-4-5-20251001"
+	defaultModel     = "claude-haiku-5-5"
 )
 
+// https://platform.claude.com/docs/en/models/overview
 var allowedModels = []string{
-	"claude-haiku-4-5-20251001",
-	"claude-sonnet-4-6",
-	"claude-opus-4-6",
+	"claude-haiku-5-5",
+	"claude-sonnet-5-5",
+	"claude-opus-5-5",
+	"claude-fable-5-1",
 }
 
 func resolveModel(model string) string {
