@@ -45,15 +45,17 @@ type codexUsage struct {
 	OutputTokens      int
 }
 
-const defaultModel = "gpt-5.6-luna"
+const defaultModel = "gpt-6-luna"
 
-// https://developers.openai.com/codex/models/
+// https://learn.chatgpt.com/docs/models?surface=cli
 var models = []string{
 	"gpt-6-astra",
+	"gpt-6.1-sol",
+	"gpt-6-sol",
+	"gpt-6-luna",
 	"gpt-5.6-sol",
 	"gpt-5.6-terra",
 	"gpt-5.6-luna",
-	"gpt-5.3-codex-spark",
 	"gpt-5.5",
 }
 
