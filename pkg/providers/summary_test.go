@@ -4,10 +4,10 @@ import "testing"
 
 func TestWrapAISummary(t *testing.T) {
 	tests := []struct {
-		name     string
-		message  string
-		assisted string
-		want     string
+		name         string
+		message      string
+		noAssistedBy bool
+		want         string
 	}{
 		{
 			name:    "subject and body",
@@ -20,22 +20,21 @@ func TestWrapAISummary(t *testing.T) {
 			want:    "feat: add thing\n\n<details>\n<summary>\n\nAI Summary\n----------\n\n</summary>\n\nAssisted-by: Claude:opus\n\n</details>",
 		},
 		{
-			name:     "subject only without trailer",
-			message:  "feat: add thing",
-			assisted: "false",
-			want:     "feat: add thing",
+			name:         "subject only without trailer",
+			message:      "feat: add thing",
+			noAssistedBy: true,
+			want:         "feat: add thing",
 		},
 		{
-			name:     "body without trailer",
-			message:  "feat: add thing\n\nWhy it matters.\n\n- point one",
-			assisted: "false",
-			want:     "feat: add thing\n\n<details>\n<summary>\n\nAI Summary\n----------\n\n</summary>\n\n> Why it matters.\n>\n> - point one\n\n</details>",
+			name:         "body without trailer",
+			message:      "feat: add thing\n\nWhy it matters.\n\n- point one",
+			noAssistedBy: true,
+			want:         "feat: add thing\n\n<details>\n<summary>\n\nAI Summary\n----------\n\n</summary>\n\n> Why it matters.\n>\n> - point one\n\n</details>",
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			t.Setenv("GIT_AI_ASSISTED_BY", tt.assisted)
-			if got := WrapAISummary(tt.message, "Claude", "opus"); got != tt.want {
+			if got := WrapAISummary(tt.message, "Claude", "opus", tt.noAssistedBy); got != tt.want {
 				t.Fatalf("WrapAISummary() = %q, want %q", got, tt.want)
 			}
 		})

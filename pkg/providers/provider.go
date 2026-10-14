@@ -2,15 +2,13 @@ package providers
 
 import (
 	"context"
-	"os"
 	"strings"
 )
 
 // AssistedByTrailer returns the "Assisted-by:" git trailer for AI-generated
 // commits as specified by the Linux kernel coding-assistants guidelines.
-// It is enabled by default and can be disabled by setting GIT_AI_ASSISTED_BY=false.
-func AssistedByTrailer(agentName, model string) string {
-	if os.Getenv("GIT_AI_ASSISTED_BY") == "false" {
+func AssistedByTrailer(agentName, model string, noAssistedBy bool) string {
+	if noAssistedBy {
 		return ""
 	}
 	var b strings.Builder
@@ -26,10 +24,10 @@ func AssistedByTrailer(agentName, model string) string {
 // WrapAISummary keeps the subject line as-is and wraps the generated body
 // plus the Assisted-by trailer in a collapsible <details> block, leaving
 // room for hand-written notes after it.
-func WrapAISummary(message, agentName, model string) string {
+func WrapAISummary(message, agentName, model string, noAssistedBy bool) string {
 	var (
 		subject, body, _ = strings.Cut(message, "\n")
-		trailer          = strings.TrimSpace(AssistedByTrailer(agentName, model))
+		trailer          = strings.TrimSpace(AssistedByTrailer(agentName, model, noAssistedBy))
 		inner            = quote(strings.TrimSpace(body))
 	)
 	if trailer != "" {
@@ -67,14 +65,15 @@ func quote(text string) string {
 }
 
 type Options struct {
-	SkillPath   string
-	ExtraNote   string
-	Model       string
-	SessionID   string
-	ShowSpinner bool
-	NoCC        bool
-	DryRun      bool
-	Budget      float64 // max spend in USD; 0 means use backend default
+	SkillPath    string
+	ExtraNote    string
+	Model        string
+	SessionID    string
+	ShowSpinner  bool
+	NoCC         bool
+	NoAssistedBy bool
+	DryRun       bool
+	Budget       float64 // max spend in USD; 0 means use backend default
 }
 
 type Backend interface {

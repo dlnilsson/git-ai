@@ -68,6 +68,8 @@ Environment:
                      Conventional Commits.
   GIT_AI_NO_SESSION: set to "true" to skip resuming a CLAUDE_SESSION_ID.
   GIT_AI_BUDGET:     maximum spend in USD per run (default: 1.0).
+  GIT_AI_ASSISTED_BY: set to "false" to omit the Assisted-by trailer (default:
+                      "true"). Also read from .agentrc; environment takes precedence.
 
 Get started:
   1. Stage your changes: git add ...
@@ -92,6 +94,13 @@ func sessionIDForBackend(backend string, noSession bool, rc agentrc.Config) stri
 		return ""
 	}
 	return rc.SessionID
+}
+
+func assistedByEnabled(rc agentrc.Config) bool {
+	if value := os.Getenv("GIT_AI_ASSISTED_BY"); value != "" {
+		return value != "false"
+	}
+	return rc.AssistedBy == nil || *rc.AssistedBy
 }
 
 func main() {
@@ -216,14 +225,15 @@ func main() {
 	sessionID := sessionIDForBackend(backend, noSession, rc)
 
 	message, err := b.Generate(ctx, &registry, providers.Options{
-		SkillPath:   skillPath,
-		ExtraNote:   extraNote,
-		Model:       model,
-		SessionID:   sessionID,
-		ShowSpinner: !noSpinner,
-		NoCC:        noCC,
-		DryRun:      dryRun,
-		Budget:      budget,
+		SkillPath:    skillPath,
+		ExtraNote:    extraNote,
+		Model:        model,
+		SessionID:    sessionID,
+		ShowSpinner:  !noSpinner,
+		NoCC:         noCC,
+		NoAssistedBy: !assistedByEnabled(rc),
+		DryRun:       dryRun,
+		Budget:       budget,
 	})
 	if err != nil {
 		fmt.Fprintf(os.Stdout, "\n\n\n# something went wrong %s\n", err.Error()) //nolint:errcheck

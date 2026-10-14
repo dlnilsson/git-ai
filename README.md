@@ -73,6 +73,16 @@ PowerShell backend override:
 $env:GIT_AI_BACKEND='codex'; git ai
 ```
 
+The `Assisted-by` trailer is enabled by default. Set `GIT_AI_ASSISTED_BY=false`
+to omit it, or `true` to include it. The tool also reads this setting from
+`.agentrc` in the worktree root, falling back to the main repository root.
+A nonempty environment value takes precedence.
+
+```bash
+# In .agentrc
+export GIT_AI_ASSISTED_BY=false
+```
+
 ## Get started
 
 1. Stage your changes: `git add ...`

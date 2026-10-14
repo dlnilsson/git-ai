@@ -162,7 +162,7 @@ func Generate(ctx context.Context, reg *providers.Registry, opts providers.Optio
 	}
 
 	msg := commit.WrapMessage(text, commit.BodyLineWidth)
-	return appendUsageComment(msg, sessionID, stats, time.Since(startTime), model), nil
+	return appendUsageComment(msg, sessionID, stats, time.Since(startTime), model, opts.NoAssistedBy), nil
 }
 
 type geminiEvent struct {
@@ -224,11 +224,11 @@ func toInt(v any) int {
 	}
 }
 
-func appendUsageComment(message string, sessionID string, stats geminiStats, elapsed time.Duration, model string) string {
+func appendUsageComment(message string, sessionID string, stats geminiStats, elapsed time.Duration, model string, noAssistedBy bool) string {
 	elapsedText := elapsed.Round(100 * time.Millisecond)
 
 	var b strings.Builder
-	b.WriteString(providers.WrapAISummary(message, "Gemini", model))
+	b.WriteString(providers.WrapAISummary(message, "Gemini", model, noAssistedBy))
 
 	b.WriteString("\n\n# tokens: input=")
 	b.WriteString(fmt.Sprint(stats.InputTokens))

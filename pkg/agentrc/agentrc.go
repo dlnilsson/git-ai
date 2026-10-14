@@ -11,12 +11,13 @@ import (
 
 // Config holds values parsed from a .agentrc file.
 type Config struct {
-	SessionID string
-	Backend   string
-	Model     string
-	NoCC      bool
-	NoSession bool
-	Budget    float64 // GIT_AI_BUDGET — max spend in USD (0 means unset)
+	SessionID  string
+	Backend    string
+	Model      string
+	NoCC       bool
+	NoSession  bool
+	AssistedBy *bool   // nil means unset
+	Budget     float64 // GIT_AI_BUDGET — max spend in USD (0 means unset)
 }
 
 // FindAndLoad looks for .agentrc first in the current worktree root, then
@@ -64,6 +65,13 @@ func Load(path string) Config {
 		if after, ok := cutEnvValue(line, "GIT_AI_NO_SESSION"); ok {
 			cfg.NoSession = strings.EqualFold(strings.TrimSpace(after), "true")
 		}
+		if after, ok := cutEnvValue(line, "GIT_AI_ASSISTED_BY"); ok {
+			switch strings.TrimSpace(after) {
+			case "true", "false":
+				value := strings.TrimSpace(after) == "true"
+				cfg.AssistedBy = &value
+			}
+		}
 		if after, ok := cutEnvValue(line, "GIT_AI_BUDGET"); ok {
 			if v, err := strconv.ParseFloat(strings.TrimSpace(after), 64); err == nil && v > 0 {
 				cfg.Budget = v
@@ -77,5 +85,13 @@ func cutEnvValue(line, key string) (string, bool) {
 	if afterExport, ok := strings.CutPrefix(line, "export "); ok {
 		line = strings.TrimSpace(afterExport)
 	}
-	return strings.CutPrefix(line, key+"=")
+	value, ok := strings.CutPrefix(line, key+"=")
+	if !ok {
+		return "", false
+	}
+	value = strings.TrimSpace(value)
+	if len(value) >= 2 && value[0] == value[len(value)-1] && (value[0] == '"' || value[0] == '\'') {
+		value = value[1 : len(value)-1]
+	}
+	return value, true
 }

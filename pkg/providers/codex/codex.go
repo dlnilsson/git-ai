@@ -221,17 +221,17 @@ func Generate(ctx context.Context, reg *providers.Registry, opts providers.Optio
 
 	if parsed := parseCodexJSON(output); strings.TrimSpace(parsed) != "" {
 		text := commit.StripCodeFence(strings.TrimSpace(parsed))
-		return appendUsageComment(commit.WrapMessage(text, commit.BodyLineWidth), usage, time.Since(startTime), model), nil
+		return appendUsageComment(commit.WrapMessage(text, commit.BodyLineWidth), usage, time.Since(startTime), model, opts.NoAssistedBy), nil
 	}
 
 	if strings.HasPrefix(output, "{") {
 		if extracted := extractJSONField(output, []string{"output", "stdout", "result", "message"}); strings.TrimSpace(extracted) != "" {
 			text := commit.StripCodeFence(strings.TrimSpace(extracted))
-			return appendUsageComment(commit.WrapMessage(text, commit.BodyLineWidth), usage, time.Since(startTime), model), nil
+			return appendUsageComment(commit.WrapMessage(text, commit.BodyLineWidth), usage, time.Since(startTime), model, opts.NoAssistedBy), nil
 		}
 	}
 
-	return appendUsageComment(commit.WrapMessage(commit.StripCodeFence(output), commit.BodyLineWidth), usage, time.Since(startTime), model), nil
+	return appendUsageComment(commit.WrapMessage(commit.StripCodeFence(output), commit.BodyLineWidth), usage, time.Since(startTime), model, opts.NoAssistedBy), nil
 }
 
 func parseErrorJSON(raw string) string {
@@ -359,14 +359,14 @@ func parseUsageJSON(raw string) (codexUsage, bool) {
 	}, true
 }
 
-func appendUsageComment(message string, usage codexUsage, elapsed time.Duration, model string) string {
+func appendUsageComment(message string, usage codexUsage, elapsed time.Duration, model string, noAssistedBy bool) string {
 	if usage == (codexUsage{}) {
 		return message
 	}
 	elapsedText := elapsed.Round(100 * time.Millisecond)
 
 	var b strings.Builder
-	b.WriteString(providers.WrapAISummary(message, "Codex", strings.TrimSpace(model)))
+	b.WriteString(providers.WrapAISummary(message, "Codex", strings.TrimSpace(model), noAssistedBy))
 	comment := b.String() + "\n\n# tokens: input=" + fmt.Sprint(usage.InputTokens) +
 		" cached=" + fmt.Sprint(usage.CachedInputTokens) +
 		" output=" + fmt.Sprint(usage.OutputTokens) +

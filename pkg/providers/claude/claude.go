@@ -200,7 +200,7 @@ func Generate(ctx context.Context, reg *providers.Registry, opts providers.Optio
 		}
 
 		msg := commit.WrapMessage(text, commit.BodyLineWidth)
-		return appendUsageComment(msg, result, time.Since(startTime), budgetUSD), nil
+		return appendUsageComment(msg, result, time.Since(startTime), budgetUSD, opts.NoAssistedBy), nil
 	}
 
 	return "", errors.New("claude: exhausted retry attempts")
@@ -449,7 +449,7 @@ func cmdString(cmd *exec.Cmd, stdinText string) string {
 	return providers.FormatCommand(cmd.Path, cmd.Args[1:]) + "\n# stdin: " + s + suffix
 }
 
-func appendUsageComment(message string, cr claudeResult, elapsed time.Duration, budgetUSD float64) string {
+func appendUsageComment(message string, cr claudeResult, elapsed time.Duration, budgetUSD float64, noAssistedBy bool) string {
 	if cr.SessionID == "" && cr.TotalCostUSD == 0 {
 		return message
 	}
@@ -463,7 +463,7 @@ func appendUsageComment(message string, cr claudeResult, elapsed time.Duration, 
 	}
 
 	var b strings.Builder
-	b.WriteString(providers.WrapAISummary(message, "Claude", model))
+	b.WriteString(providers.WrapAISummary(message, "Claude", model, noAssistedBy))
 
 	b.WriteString("\n\n# cost=$")
 	b.WriteString(fmt.Sprintf("%.4f", cr.TotalCostUSD))
