@@ -17,7 +17,7 @@ func TestWrapAISummary(t *testing.T) {
 		{
 			name:    "subject only",
 			message: "feat: add thing",
-			want:    "feat: add thing\n\n<details>\n<summary>\n\nAI Summary\n----------\n\n</summary>\n\nAssisted-by: Claude:opus\n\n</details>",
+			want:    "feat: add thing",
 		},
 		{
 			name:         "subject only without trailer",
