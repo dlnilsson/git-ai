@@ -21,15 +21,18 @@ func AssistedByTrailer(agentName, model string, noAssistedBy bool) string {
 	return b.String()
 }
 
-// WrapAISummary keeps the subject line as-is and wraps the generated body
-// plus the Assisted-by trailer in a collapsible <details> block, leaving
-// room for hand-written notes after it.
+// WrapAISummary keeps the subject line as-is and wraps the subject, the
+// generated body and the Assisted-by trailer in a collapsible <details>
+// block, leaving room for hand-written notes after it.
 func WrapAISummary(message, agentName, model string, noAssistedBy bool) string {
 	var (
 		subject, body, _ = strings.Cut(message, "\n")
 		trailer          = strings.TrimSpace(AssistedByTrailer(agentName, model, noAssistedBy))
-		inner            = quote(strings.TrimSpace(body))
+		inner            string
 	)
+	if body = strings.TrimSpace(body); body != "" {
+		inner = quote(subject + "\n\n" + body)
+	}
 	if trailer != "" {
 		if inner != "" {
 			inner += "\n\n"

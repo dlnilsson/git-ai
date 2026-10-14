@@ -12,7 +12,7 @@ func TestWrapAISummary(t *testing.T) {
 		{
 			name:    "subject and body",
 			message: "feat: add thing\n\nWhy it matters.\n\n- point one",
-			want:    "feat: add thing\n\n<details>\n<summary>\n\nAI Summary\n----------\n\n</summary>\n\n> Why it matters.\n>\n> - point one\n\nAssisted-by: Claude:opus\n\n</details>",
+			want:    "feat: add thing\n\n<details>\n<summary>\n\nAI Summary\n----------\n\n</summary>\n\n> feat: add thing\n>\n> Why it matters.\n>\n> - point one\n\nAssisted-by: Claude:opus\n\n</details>",
 		},
 		{
 			name:    "subject only",
@@ -29,7 +29,7 @@ func TestWrapAISummary(t *testing.T) {
 			name:         "body without trailer",
 			message:      "feat: add thing\n\nWhy it matters.\n\n- point one",
 			noAssistedBy: true,
-			want:         "feat: add thing\n\n<details>\n<summary>\n\nAI Summary\n----------\n\n</summary>\n\n> Why it matters.\n>\n> - point one\n\n</details>",
+			want:         "feat: add thing\n\n<details>\n<summary>\n\nAI Summary\n----------\n\n</summary>\n\n> feat: add thing\n>\n> Why it matters.\n>\n> - point one\n\n</details>",
 		},
 	}
 	for _, tt := range tests {
