@@ -43,7 +43,7 @@ func WrapAISummary(message, agentName, model string) string {
 	}
 	var b strings.Builder
 	b.WriteString(subject)
-	b.WriteString("\n\n<details><summary>AI Summary</summary>\n\n")
+	b.WriteString("\n\n<details>\n<summary>\n\nAI Summary\n----------\n\n</summary>\n\n")
 	b.WriteString(inner)
 	b.WriteString("\n\n</details>")
 	return b.String()
