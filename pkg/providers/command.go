@@ -43,9 +43,10 @@ func joinCommand(parts []string) string {
 	if len(parts) == 0 {
 		return ""
 	}
-	out := parts[0]
+	var out strings.Builder
+	out.WriteString(parts[0])
 	for i := 1; i < len(parts); i++ {
-		out += " " + parts[i]
+		out.WriteString(" " + parts[i])
 	}
-	return out
+	return out.String()
 }

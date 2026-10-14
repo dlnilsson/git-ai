@@ -110,7 +110,7 @@ func Generate(ctx context.Context, reg *providers.Registry, opts providers.Optio
 	}
 
 	sessionID := opts.SessionID
-	for attempt := 0; attempt < 2; attempt++ {
+	for attempt := range 2 {
 		args := append([]string{}, baseArgs...)
 		if sessionID != "" {
 			args = append([]string{"--resume=" + sessionID, "--fork-session"}, args...)
