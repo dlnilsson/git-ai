@@ -1,6 +1,12 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+for arg in "$@"; do
+	case "$arg" in
+	-h | -help | --help) exec git-cc-ai --help ;;
+	esac
+done
+
 tmp=$(mktemp)
 trap 'rm -f "$tmp"' EXIT
 
