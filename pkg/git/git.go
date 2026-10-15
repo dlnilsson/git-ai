@@ -66,6 +66,24 @@ func CommonRoot() (string, error) {
 	return filepath.Dir(strings.TrimSpace(string(out))), nil
 }
 
+// HasStaged reports whether the index has changes staged for commit.
+func HasStaged() (bool, error) {
+	if err := checkGitDir(); err != nil {
+		return false, err
+	}
+	cmd := gitCmd("diff", "--staged", "--quiet")
+	cmd.Stderr = io.Discard
+	err := cmd.Run()
+	if err == nil {
+		return false, nil
+	}
+	var exitErr *exec.ExitError
+	if errors.As(err, &exitErr) && exitErr.ExitCode() == 1 {
+		return true, nil
+	}
+	return false, fmt.Errorf("failed to check staged changes (git diff --staged --quiet): %w", err)
+}
+
 // DiffStaged returns the full staged diff, falling back to --stat when the
 // diff exceeds maxDiffBytes. Used by the codex backend.
 func DiffStaged() (string, error) {

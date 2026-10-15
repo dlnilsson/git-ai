@@ -14,6 +14,7 @@ import (
 	"syscall"
 
 	"github.com/dlnilsson/git-cc-ai/pkg/agentrc"
+	"github.com/dlnilsson/git-cc-ai/pkg/git"
 	"github.com/dlnilsson/git-cc-ai/pkg/providers"
 	"github.com/dlnilsson/git-cc-ai/pkg/providers/claude"
 	"github.com/dlnilsson/git-cc-ai/pkg/providers/codex"
@@ -143,6 +144,19 @@ func main() {
 	flag.Parse()
 	if flag.NArg() > 0 {
 		extraNote = strings.Join(flag.Args(), " ")
+	}
+
+	// Fail before showing any menu so the user is not prompted for nothing.
+	if interactive || mFlag == menuSentinel {
+		staged, err := git.HasStaged()
+		if err != nil {
+			fmt.Fprintln(os.Stderr, err.Error())
+			os.Exit(1)
+		}
+		if !staged {
+			fmt.Fprintln(os.Stderr, "no staged diff content found")
+			os.Exit(1)
+		}
 	}
 
 	rc := agentrc.FindAndLoad()
