@@ -21,6 +21,9 @@ import (
 	"github.com/dlnilsson/git-cc-ai/pkg/ui"
 )
 
+// backendOrder is the auto-detection preference and interactive menu order.
+var backendOrder = []string{"claude", "gemini", "codex"}
+
 const (
 	menuSentinel       = "menu"
 	errInvalidModelFmt = "invalid model %q (use -m for interactive pick, or one of: %s)\n"
@@ -71,6 +74,10 @@ Environment:
   GIT_AI_ASSISTED_BY: set to "false" to omit the Assisted-by trailer (default:
                       "true"). Also read from .agentrc; environment takes precedence.
 
+Interactive mode:
+  git ai -i (or --interactive) prompts for the backend (among those found in
+  PATH) and the model, ignoring GIT_AI_BACKEND, GIT_AI_MODEL and .agentrc.
+
 Get started:
   1. Stage your changes: git add ...
   2. Run: git ai (or git-cc-ai if not using a git alias)
@@ -89,6 +96,16 @@ func execInPath(name string) bool {
 	return err == nil
 }
 
+func installedBackends() []string {
+	installed := make([]string, 0, len(backendOrder))
+	for _, name := range backendOrder {
+		if execInPath(name) {
+			installed = append(installed, name)
+		}
+	}
+	return installed
+}
+
 func sessionIDForBackend(backend string, noSession bool, rc agentrc.Config) string {
 	if noSession || backend != "claude" {
 		return ""
@@ -105,12 +122,13 @@ func assistedByEnabled(rc agentrc.Config) bool {
 
 func main() {
 	var (
-		mFlag     string
-		model     string
-		noSpinner bool
-		dryRun    bool
-		skillPath string
-		extraNote string
+		mFlag       string
+		model       string
+		noSpinner   bool
+		dryRun      bool
+		skillPath   string
+		extraNote   string
+		interactive bool
 	)
 
 	injectBareM()
@@ -119,6 +137,8 @@ func main() {
 	flag.BoolVar(&dryRun, "dry-run", false, "print the backend command and exit")
 	flag.StringVar(&model, "model", "", "model name (overrides -m)")
 	flag.StringVar(&mFlag, "m", "", "model name, or no value for interactive selection")
+	flag.BoolVar(&interactive, "i", false, "interactively select backend and model")
+	flag.BoolVar(&interactive, "interactive", false, "interactively select backend and model")
 	flag.Usage = printHelp
 	flag.Parse()
 	if flag.NArg() > 0 {
@@ -132,21 +152,26 @@ func main() {
 		"claude": claude.Backend{},
 		"gemini": gemini.Backend{},
 	}
-	backend := strings.TrimSpace(os.Getenv("GIT_AI_BACKEND"))
-	if backend == "" {
-		backend = rc.Backend
+	var backend string
+	if !interactive {
+		backend = strings.TrimSpace(os.Getenv("GIT_AI_BACKEND"))
+		if backend == "" {
+			backend = rc.Backend
+		}
 	}
 	if backend == "" {
-		switch {
-		case execInPath("claude"):
-			backend = "claude"
-		case execInPath("gemini"):
-			backend = "gemini"
-		case execInPath("codex"):
-			backend = "codex"
-		default:
+		installed := installedBackends()
+		if len(installed) == 0 {
 			fmt.Fprintln(os.Stderr, "no supported backend found in PATH (install claude, gemini or codex)")
 			os.Exit(1)
+		}
+		backend = installed[0]
+		if interactive {
+			selected, err := ui.SelectMenu("Select a backend", installed)
+			if err != nil {
+				os.Exit(1)
+			}
+			backend = selected
 		}
 	}
 	b, ok := backends[backend]
@@ -158,6 +183,11 @@ func main() {
 		sort.Strings(available)
 		fmt.Fprintf(os.Stderr, "invalid GIT_AI_BACKEND value %q (available: %s)\n", backend, strings.Join(available, ", "))
 		os.Exit(1)
+	}
+
+	// Interactive mode without an explicit model behaves like a bare -m.
+	if interactive && strings.TrimSpace(model) == "" && strings.TrimSpace(mFlag) == "" {
+		mFlag = menuSentinel
 	}
 
 	// --model flag is explicit user intent — validate strictly.
@@ -185,7 +215,7 @@ func main() {
 	case strings.TrimSpace(mFlag) == "":
 		// No model specified — provider will use its default.
 	case mFlag == menuSentinel:
-		selected, err := ui.SelectModelMenu(availableModels)
+		selected, err := ui.SelectMenu("Select a model", availableModels)
 		if err != nil {
 			os.Exit(1)
 		}
