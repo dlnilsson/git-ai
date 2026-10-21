@@ -4,6 +4,7 @@ set -euo pipefail
 for arg in "$@"; do
 	case "$arg" in
 	-h | -help | --help) exec git-cc-ai --help ;;
+	-version | --version) exec git-cc-ai --version ;;
 	esac
 done
 

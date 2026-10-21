@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/exec"
 	"os/signal"
+	"runtime/debug"
 	"slices"
 	"sort"
 	"strconv"
@@ -92,6 +93,28 @@ Flags:
 	fmt.Fprintln(os.Stderr)
 }
 
+func versionString() string {
+	info, ok := debug.ReadBuildInfo()
+	if !ok {
+		return "git-cc-ai (unknown)"
+	}
+	var (
+		revision = "unknown"
+		dirty    string
+	)
+	for _, setting := range info.Settings {
+		switch setting.Key {
+		case "vcs.revision":
+			revision = setting.Value
+		case "vcs.modified":
+			if setting.Value == "true" {
+				dirty = "-dirty"
+			}
+		}
+	}
+	return fmt.Sprintf("git-cc-ai %s%s (%s)", revision, dirty, info.GoVersion)
+}
+
 func execInPath(name string) bool {
 	_, err := exec.LookPath(name)
 	return err == nil
@@ -130,6 +153,7 @@ func main() {
 		skillPath   string
 		extraNote   string
 		interactive bool
+		version     bool
 	)
 
 	injectBareM()
@@ -140,8 +164,13 @@ func main() {
 	flag.StringVar(&mFlag, "m", "", "model name, or no value for interactive selection")
 	flag.BoolVar(&interactive, "i", false, "interactively select backend and model")
 	flag.BoolVar(&interactive, "interactive", false, "interactively select backend and model")
+	flag.BoolVar(&version, "version", false, "print version and exit")
 	flag.Usage = printHelp
 	flag.Parse()
+	if version {
+		fmt.Println(versionString())
+		return
+	}
 	if flag.NArg() > 0 {
 		extraNote = strings.Join(flag.Args(), " ")
 	}
