@@ -3,7 +3,7 @@ module github.com/dlnilsson/git-cc-ai
 go 1.27.3
 
 require (
-	charm.land/bubbles/v2 v2.0.0
+	charm.land/bubbles/v2 v2.2.1
 	charm.land/bubbletea/v2 v2.1.1
 	charm.land/lipgloss/v2 v2.1.0
 	github.com/charmbracelet/glamour v0.10.0
