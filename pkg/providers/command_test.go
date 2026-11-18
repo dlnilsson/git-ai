@@ -3,8 +3,8 @@ package providers
 import "testing"
 
 func TestFormatCommand(t *testing.T) {
-	got := FormatCommand("gemini", []string{"--model", "gemini-2.5-flash", "--prompt", "line one\nline two", "--label", "O'Reilly"})
-	want := "gemini --model gemini-2.5-flash --prompt 'line one\nline two' --label 'O'\"'\"'Reilly'"
+	got := FormatCommand("codex", []string{"--model", "gpt-5", "--prompt", "line one\nline two", "--label", "O'Reilly"})
+	want := "codex --model gpt-5 --prompt 'line one\nline two' --label 'O'\"'\"'Reilly'"
 	if got != want {
 		t.Fatalf("FormatCommand() = %q, want %q", got, want)
 	}

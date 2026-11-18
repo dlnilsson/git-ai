@@ -19,12 +19,11 @@ import (
 	"github.com/dlnilsson/git-cc-ai/pkg/providers"
 	"github.com/dlnilsson/git-cc-ai/pkg/providers/claude"
 	"github.com/dlnilsson/git-cc-ai/pkg/providers/codex"
-	"github.com/dlnilsson/git-cc-ai/pkg/providers/gemini"
 	"github.com/dlnilsson/git-cc-ai/pkg/ui"
 )
 
 // backendOrder is the auto-detection preference and interactive menu order.
-var backendOrder = []string{"claude", "gemini", "codex"}
+var backendOrder = []string{"claude", "codex"}
 
 const (
 	menuSentinel       = "menu"
@@ -58,12 +57,11 @@ message to stdout. Use it with git commit (e.g. via the git-ai script) and
 optionally edit the message in your editor before committing.
 
 Requirements:
-  Claude, Gemini or Codex must be installed and on your PATH.
+  Claude or Codex must be installed and on your PATH.
   The backend is auto-detected (claude preferred) or set via GIT_AI_BACKEND.
 
 Backends:
   claude   Anthropic Claude CLI (preferred when found in PATH)
-  gemini   Google Gemini CLI
   codex    OpenAI Codex CLI
 
 Environment:
@@ -193,7 +191,6 @@ func main() {
 	backends := map[string]providers.Backend{
 		"codex":  codex.Backend{},
 		"claude": claude.Backend{},
-		"gemini": gemini.Backend{},
 	}
 	var backend string
 	if !interactive {
@@ -205,7 +202,7 @@ func main() {
 	if backend == "" {
 		installed := installedBackends()
 		if len(installed) == 0 {
-			fmt.Fprintln(os.Stderr, "no supported backend found in PATH (install claude, gemini or codex)")
+			fmt.Fprintln(os.Stderr, "no supported backend found in PATH (install claude or codex)")
 			os.Exit(1)
 		}
 		backend = installed[0]

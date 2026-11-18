@@ -13,7 +13,7 @@ func TestSessionIDForBackend(t *testing.T) {
 		t.Fatalf("claude backend should receive session id, got %q", got)
 	}
 
-	for _, backend := range []string{"gemini", "codex"} {
+	for _, backend := range []string{"codex"} {
 		if got := sessionIDForBackend(backend, false, cfg); got != "" {
 			t.Fatalf("%s backend should not receive session id, got %q", backend, got)
 		}
