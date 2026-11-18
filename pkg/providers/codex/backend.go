@@ -12,5 +12,5 @@ func (Backend) Generate(ctx context.Context, reg *providers.Registry, opts provi
 	return Generate(ctx, reg, opts)
 }
 
-func (Backend) Models() []string     { return append([]string{}, models...) }
+func (Backend) Models(ctx context.Context) []string { return listModels(ctx) }
 func (Backend) DefaultModel() string { return defaultModel }

@@ -76,6 +76,8 @@ type Options struct {
 
 type Backend interface {
 	Generate(ctx context.Context, reg *Registry, opts Options) (string, error)
-	Models() []string
+	// Models lists models for the interactive menu. Discovery is best-effort
+	// and falls back to a static list on failure.
+	Models(ctx context.Context) []string
 	DefaultModel() string
 }

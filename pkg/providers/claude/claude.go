@@ -21,16 +21,8 @@ import (
 
 const (
 	defaultBudgetUSD = 1.0
-	defaultModel     = "claude-haiku-5-5"
+	defaultModel     = "haiku"
 )
-
-// https://platform.claude.com/docs/en/models/overview
-var allowedModels = []string{
-	"claude-haiku-5-5",
-	"claude-sonnet-5-5",
-	"claude-opus-5-5",
-	"claude-fable-5-1",
-}
 
 func resolveModel(model string) string {
 	if strings.TrimSpace(model) != "" {

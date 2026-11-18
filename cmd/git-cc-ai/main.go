@@ -8,7 +8,6 @@ import (
 	"os/exec"
 	"os/signal"
 	"runtime/debug"
-	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -25,10 +24,7 @@ import (
 // backendOrder is the auto-detection preference and interactive menu order.
 var backendOrder = []string{"claude", "codex"}
 
-const (
-	menuSentinel       = "menu"
-	errInvalidModelFmt = "invalid model %q (use -m for interactive pick, or one of: %s)\n"
-)
+const menuSentinel = "menu"
 
 func injectBareM() {
 	args := os.Args
@@ -230,9 +226,8 @@ func main() {
 		mFlag = menuSentinel
 	}
 
-	// --model flag is explicit user intent — validate strictly.
-	// GIT_AI_MODEL / .agentrc is a soft preference — silently fall back to
-	// the provider default when the model doesn't match.
+	// Model names are passed through unvalidated; the backend CLI rejects
+	// unknown models. Flags win over GIT_AI_MODEL, which wins over .agentrc.
 	modelFromFlag := strings.TrimSpace(model) != "" || strings.TrimSpace(mFlag) != ""
 	if envModel := strings.TrimSpace(os.Getenv("GIT_AI_MODEL")); envModel != "" && !modelFromFlag {
 		model = envModel
@@ -241,32 +236,19 @@ func main() {
 		model = rc.Model
 	}
 
-	availableModels := b.Models()
 	switch {
 	case strings.TrimSpace(model) != "":
 		model = strings.TrimSpace(model)
-		if !slices.Contains(availableModels, model) {
-			if modelFromFlag {
-				fmt.Fprintf(os.Stderr, errInvalidModelFmt, model, strings.Join(availableModels, ", "))
-				os.Exit(1)
-			}
-			model = ""
-		}
 	case strings.TrimSpace(mFlag) == "":
 		// No model specified — provider will use its default.
 	case mFlag == menuSentinel:
-		selected, err := ui.SelectMenu("Select a model", availableModels)
+		selected, err := ui.SelectMenu("Select a model", b.Models(context.Background()))
 		if err != nil {
 			os.Exit(1)
 		}
 		model = selected
 	default:
-		candidate := strings.TrimSpace(mFlag)
-		if !slices.Contains(availableModels, candidate) {
-			fmt.Fprintf(os.Stderr, errInvalidModelFmt, candidate, strings.Join(availableModels, ", "))
-			os.Exit(1)
-		}
-		model = candidate
+		model = strings.TrimSpace(mFlag)
 	}
 
 	var registry providers.Registry
